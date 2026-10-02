@@ -1,1 +1,183 @@
-# Project-control-center
+<div align="center">
+
+<img src="Orbit/Resources/Assets.xcassets/AppIcon.appiconset/icon_256.png" width="128" alt="Orbit">
+
+# Orbit
+
+**Центр управления проектами для разработчика, который работает вместе с ИИ-агентами.**
+
+План недели по проектам · здоровье проектов · сессии Claude Code и Codex · состояние git — в одном нативном окне macOS.
+
+![Version](https://img.shields.io/badge/version-0.1.0-C8F169?style=flat-square&labelColor=15171A)
+![Platform](https://img.shields.io/badge/macOS-15%2B-ECEDEF?style=flat-square&logo=apple&logoColor=white&labelColor=15171A)
+![Swift](https://img.shields.io/badge/SwiftUI-Swift%205-F59E5B?style=flat-square&logo=swift&logoColor=white&labelColor=15171A)
+![Local first](https://img.shields.io/badge/данные-локально-5AD48A?style=flat-square&labelColor=15171A)
+
+<img src="design/exports/png/01-week-dashboard.png" width="900" alt="Экран «Неделя»">
+
+</div>
+
+---
+
+## Зачем
+
+Когда параллельно ведёшь несколько проектов и в каждом работают агенты, легко потерять нить: где агент застрял вчера, какая ветка отстала от `main`, что лежит незакоммиченным третий день и за какой проект браться в пятницу. Orbit собирает это сам — из git и логов агентов — и предлагает план на неделю.
+
+## Возможности
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 📅 Неделя
+Проект в фокусе на сегодня с целью дня, последняя сессия агента, состояние git и следующие шаги. План недели с фактическими часами — проекты перетаскиваются из сайдбара на нужный день.
+
+</td>
+<td width="50%" valign="top">
+
+### 🗓 Планировщик
+Сетка «проекты × дни». Автоплан учитывает здоровье проектов, сигналы, ваш ритм (часы по дням, проектов в день) и закреплённые дни. «Другой вариант» — пересобрать.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🤖 Сессии агентов
+Claude Code, Codex и Aider: что сделано, где застрял, сколько токенов и тестов, ход сессии и транскрипт. «Продолжить с контекстом» открывает ту же сессию в терминале.
+
+</td>
+<td valign="top">
+
+### 🌿 Git
+Ветки, ahead/behind, отставание от `main` и конфликты, график коммитов «агенты / вы», заброшенные ветки. Коммит с готовым сообщением прямо из приложения.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🔔 Сигналы
+Незакоммиченное дольше суток, ветка отстала, агент откатывает правки, падают тесты, проект простаивает. Каждое правило — тумблер; сигнал закрывается сам, когда проблема ушла.
+
+</td>
+<td valign="top">
+
+### 🌅 Фоновый режим
+Проверка каждые 15 минут, утренняя сводка в 9:00, автоплан по воскресеньям в 20:00, уведомления macOS. Orbit живёт в строке меню, когда окно закрыто.
+
+</td>
+</tr>
+</table>
+
+## Экраны
+
+| | |
+| :---: | :---: |
+| <img src="design/exports/png/02-project-detail.png" alt="Проект"> | <img src="design/exports/png/03-projects.png" alt="Проекты"> |
+| **Проект** — здоровье, сессии, git, дни работы | **Проекты** — карточки и время по проектам |
+| <img src="design/exports/png/04-agent-sessions.png" alt="Сессии агентов"> | <img src="design/exports/png/05-git.png" alt="Git"> |
+| **Сессии агентов** — итог, затыки, рекомендация | **Git** — коммиты, репозитории, ветки |
+| <img src="design/exports/png/06-signals.png" alt="Сигналы"> | <img src="design/exports/png/07-week-planner.png" alt="Планировщик"> |
+| **Сигналы** — правила мониторинга | **Планировщик** — план на неделю |
+
+<details>
+<summary><b>Онбординг и первый запуск</b></summary>
+<br>
+
+| | |
+| :---: | :---: |
+| <img src="design/exports/png/08-onboarding-1-repos.png" alt="Репозитории"> | <img src="design/exports/png/09-onboarding-2-agents.png" alt="Агенты"> |
+| <img src="design/exports/png/10-onboarding-3-rhythm.png" alt="Ритм недели"> | <img src="design/exports/png/11-week-first-launch.png" alt="Первый запуск"> |
+
+</details>
+
+> Скриншоты — макеты из `design/` (Pencil). Приложение сверстано по ним и показывает ваши реальные проекты.
+
+## Быстрый старт
+
+Нужны **Xcode 26+** и [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+
+```sh
+brew install xcodegen
+xcodegen generate
+xcodebuild -project Orbit.xcodeproj -scheme Orbit -configuration Release \
+  -derivedDataPath ~/Library/Developer/Xcode/DerivedData/Orbit build
+open ~/Library/Developer/Xcode/DerivedData/Orbit/Build/Products/Release/Orbit.app
+```
+
+При первом запуске онбординг найдёт репозитории в выбранных папках, источники логов агентов и спросит ритм недели.
+
+> [!TIP]
+> Держите DerivedData вне `~/Documents`: iCloud добавляет файлам метаданные, и подпись падает с ошибкой *«resource fork, Finder information, or similar detritus not allowed»*.
+
+## Откуда берутся данные
+
+Всё читается **локально**, код никуда не отправляется. Состояние приложения — в `~/.orbit`.
+
+| Данные | Источник |
+| --- | --- |
+| Ветка, ahead/behind, незакоммиченное, отставание от `main`, конфликты | `git status --porcelain=v2`, `git rev-list`, `git merge-tree` |
+| Коммиты и их автор (агент или вы) | `git log` + трейлеры `Co-Authored-By` + окна сессий агентов |
+| Сессии **Claude Code** | `~/.claude/projects/<папка>/*.jsonl` |
+| Сессии **Codex** | `~/.codex/sessions/**/rollout-*.jsonl` + `session_index.jsonl` |
+| Сессии **Aider** | `.aider.chat.history.md` в корне репозитория |
+| Здоровье, выводы, план, сигналы | локальные эвристики — `Orbit/Services` |
+
+Логи парсятся один раз и кэшируются по размеру и времени изменения файла, поэтому повторное обновление занимает около секунды.
+
+<details>
+<summary><b>Как считается здоровье проекта</b></summary>
+<br>
+
+Шкала 0–100. Штрафы: изменения не закоммичены дольше суток, ветка отстаёт от `main`, конфликты, красные тесты в последней сессии, простой больше недели, доля незавершённых и откаченных сессий. Бонусы: завершённые сессии и коммиты за неделю. ≥ 75 — «в хорошей форме», 50–74 — «требует внимания», < 50 — «критично». Логика — [`HealthEngine.swift`](Orbit/Services/HealthEngine.swift).
+
+</details>
+
+## Горячие клавиши
+
+| | |
+| --- | --- |
+| <kbd>⌘</kbd> <kbd>1</kbd>…<kbd>5</kbd> | Неделя · Проекты · Сессии · Git · Сигналы |
+| <kbd>⌘</kbd> <kbd>R</kbd> | Обновить данные |
+| <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>P</kbd> | Запланировать неделю |
+
+## Структура проекта
+
+```
+Orbit/
+├── App/         точка входа, AppState, строка меню
+├── Design/      токены темы и общие компоненты
+├── Models/      проекты, git, сессии, план, сигналы
+├── Services/    GitService, парсеры сессий, движки здоровья/выводов/сигналов, Planner
+└── Features/    Неделя · Проекты · Сессии агентов · Git · Сигналы · Онбординг
+OrbitTests/      парсеры на фикстурах, git на временном репо, планировщик и сигналы
+design/          макеты Pencil и экспорты
+```
+
+## Разработка
+
+```sh
+# тесты
+xcodebuild test -project Orbit.xcodeproj -scheme Orbit \
+  -derivedDataPath ~/Library/Developer/Xcode/DerivedData/Orbit -destination 'platform=macOS'
+
+# прогон на ваших реальных репозиториях
+ORBIT_SMOKE=1 xcodebuild test …
+```
+
+Debug-сборка умеет сохранять скриншоты экранов без разрешения на запись экрана; `--data-dir` подменяет `~/.orbit`, так что реальные данные не трогаются:
+
+```sh
+Orbit.app/Contents/MacOS/Orbit --data-dir /tmp/orbit-data --snapshot /tmp/shots --auto-onboard
+```
+
+Версия задаётся в одном месте — `MARKETING_VERSION` в [`project.yml`](project.yml). История изменений — в [CHANGELOG.md](CHANGELOG.md).
+
+## Дорожная карта
+
+- [x] **0.1** — все экраны на реальных данных, эвристики вместо ИИ
+- [ ] Выводы и рекомендации через Claude API или локально через Ollama
+- [ ] GitHub: открытые PR и статусы CI через `gh`
+- [ ] Уведомления в Telegram и на почту
+- [ ] Чаты Cursor

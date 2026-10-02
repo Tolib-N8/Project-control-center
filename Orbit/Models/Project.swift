@@ -1,0 +1,89 @@
+import Foundation
+
+/// A tracked repository. Persisted in ~/.orbit/config.json.
+struct ProjectConfig: Codable, Identifiable, Hashable {
+    /// Absolute path of the repository root; doubles as the stable id.
+    var id: String { path }
+    var path: String
+    var name: String
+    var colorIndex: Int
+    var archived: Bool = false
+    /// Preferred work days, 0 = Monday … 6 = Sunday.
+    var workDays: [Int] = []
+
+    var displayPath: String { path.abbreviatingHome }
+}
+
+/// Weekly rhythm from onboarding step 3.
+struct Rhythm: Codable, Hashable {
+    /// Hours available per weekday, 0 = Monday … 6 = Sunday.
+    var hours: [Int] = [7, 7, 7, 7, 7, 0, 0]
+    var dayStartHour: Int = 10
+    var maxProjectsPerDay: Int = 2
+    var autoPlanSunday: Bool = true
+    var morningBrief: Bool = true
+    var signalsEnabled: Bool = true
+
+    var weeklyHours: Int { hours.reduce(0, +) }
+}
+
+enum AgentKind: String, Codable, CaseIterable, Identifiable, Hashable {
+    case claude, codex, cursor, aider
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .claude: "Claude Code"
+        case .codex: "Codex"
+        case .cursor: "Cursor"
+        case .aider: "Aider"
+        }
+    }
+
+    var defaultLogPath: String {
+        switch self {
+        case .claude: "~/.claude/projects"
+        case .codex: "~/.codex/sessions"
+        case .cursor: "~/Library/Application Support/Cursor"
+        case .aider: ".aider.chat.history.md"
+        }
+    }
+}
+
+struct AgentSourceConfig: Codable, Hashable {
+    var enabled: Bool = true
+    var customPath: String?
+}
+
+struct OrbitConfig: Codable {
+    var onboarded = false
+    var scanRoots: [String] = ["~/Documents/Projects"]
+    var projects: [ProjectConfig] = []
+    var agentSources: [String: AgentSourceConfig] = [:]
+    var rhythm = Rhythm()
+    var rules: [SignalRuleConfig] = SignalRuleKind.allCases.map { SignalRuleConfig(kind: $0) }
+    var notifyMacOS = true
+    var terminalApp = "Terminal"
+    var lastMorningBrief: String?
+    var lastAutoPlanWeek: String?
+
+    func source(_ kind: AgentKind) -> AgentSourceConfig {
+        agentSources[kind.rawValue] ?? AgentSourceConfig()
+    }
+
+    func rule(_ kind: SignalRuleKind) -> SignalRuleConfig {
+        rules.first { $0.kind == kind } ?? SignalRuleConfig(kind: kind)
+    }
+
+    var activeProjects: [ProjectConfig] { projects.filter { !$0.archived } }
+}
+
+extension String {
+    var expandingTilde: String { (self as NSString).expandingTildeInPath }
+
+    var abbreviatingHome: String {
+        let home = NSHomeDirectory()
+        return hasPrefix(home) ? "~" + dropFirst(home.count) : self
+    }
+}

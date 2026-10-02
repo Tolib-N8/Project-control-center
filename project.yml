@@ -1,0 +1,65 @@
+name: Orbit
+options:
+  bundleIdPrefix: dev.tolib
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    # Single source of the app version: the About panel and the menu bar read it from Info.plist.
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    MACOSX_DEPLOYMENT_TARGET: "15.0"
+    ENABLE_HARDENED_RUNTIME: NO
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ""
+targets:
+  Orbit:
+    type: application
+    platform: macOS
+    sources:
+      - path: Orbit
+        excludes:
+          - "Resources/Fonts"
+      - path: Orbit/Resources/Fonts
+        type: folder
+        buildPhase: resources
+    info:
+      path: Orbit/Info.plist
+      properties:
+        CFBundleDisplayName: Orbit
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        LSApplicationCategoryType: public.app-category.developer-tools
+        ATSApplicationFontsPath: Fonts
+        NSHumanReadableCopyright: ""
+        LSMinimumSystemVersion: "15.0"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.tolib.orbit
+        ENABLE_APP_SANDBOX: NO
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+  OrbitTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: OrbitTests
+    dependencies:
+      - target: Orbit
+    settings:
+      base:
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Orbit.app/Contents/MacOS/Orbit"
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Orbit:
+    build:
+      targets:
+        Orbit: all
+        OrbitTests: [test]
+    test:
+      targets:
+        - OrbitTests
