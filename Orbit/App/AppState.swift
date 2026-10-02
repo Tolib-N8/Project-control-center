@@ -471,8 +471,8 @@ final class AppState {
         updatePhase = .downloading(0)
         Task {
             do {
-                try await Updater.install(release) { [weak self] p in
-                    if case .downloading = self?.updatePhase { self?.updatePhase = .downloading(p) }
+                try await Updater.install(release) { p in
+                    if case .downloading = self.updatePhase { self.updatePhase = .downloading(p) }
                 }
                 updatePhase = .installing
                 // The helper swaps the bundle as soon as we are gone and relaunches the new version.
