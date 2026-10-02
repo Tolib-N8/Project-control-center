@@ -57,7 +57,7 @@ struct OnboardingView: View {
     private var topBar: some View {
         HStack {
             HStack(spacing: 10) {
-                LogoMark(size: 26)
+                BrandLogo(size: 26)
                 Text("Orbit").uiFont(16, .semibold)
             }
             .frame(width: 220, alignment: .leading)

@@ -78,13 +78,28 @@ struct MenuBarContent: View {
 
 struct RootView: View {
     @Environment(AppState.self) private var app
+    @State private var splash = LaunchSplash.shouldPlay
+    @Namespace private var logoSpace
 
     var body: some View {
-        Group {
-            if app.config.onboarded {
-                MainView()
-            } else {
-                OnboardingView()
+        ZStack {
+            Group {
+                if app.config.onboarded {
+                    MainView()
+                } else {
+                    OnboardingView()
+                }
+            }
+            .environment(\.logoNamespace, logoSpace)
+            .environment(\.splashActive, splash)
+
+            if splash {
+                // The splash dissolves while its logo flies into the sidebar.
+                LaunchSplash(namespace: logoSpace) {
+                    withAnimation(.spring(response: 0.55, dampingFraction: 0.9)) { splash = false }
+                }
+                .transition(.opacity)
+                .zIndex(1)
             }
         }
         .background(Theme.bg)

@@ -8,7 +8,7 @@
 
 План недели по проектам · здоровье проектов · сессии Claude Code и Codex · состояние git — в одном нативном окне macOS.
 
-![Version](https://img.shields.io/badge/version-0.3.0-C8F169?style=flat-square&labelColor=15171A)
+![Version](https://img.shields.io/badge/version-0.4.0-C8F169?style=flat-square&labelColor=15171A)
 ![Platform](https://img.shields.io/badge/macOS-15%2B-ECEDEF?style=flat-square&logo=apple&logoColor=white&labelColor=15171A)
 ![Swift](https://img.shields.io/badge/SwiftUI-Swift%205-F59E5B?style=flat-square&logo=swift&logoColor=white&labelColor=15171A)
 ![Local first](https://img.shields.io/badge/данные-локально-5AD48A?style=flat-square&labelColor=15171A)
@@ -197,6 +197,7 @@ Orbit.app/Contents/MacOS/Orbit --data-dir /tmp/orbit-data --snapshot /tmp/shots 
 - [x] **0.1** — все экраны на реальных данных, эвристики вместо ИИ
 - [x] **0.2** — ИИ-анализ: Claude по подписке, Claude API, Codex, Ollama, OpenAI-совместимые
 - [x] **0.3** — анимации и переходы, поддержка «Уменьшить движение»
+- [x] **0.4** — анимация запуска с логотипом
 - [ ] GitHub: открытые PR и статусы CI через `gh`
 - [ ] Уведомления в Telegram и на почту
 - [ ] Чаты Cursor

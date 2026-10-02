@@ -20,6 +20,17 @@ enum Snapshotter {
         if let i = args.firstIndex(of: "--screens"), i + 1 < args.count {
             names = args[i + 1].split(separator: ",").map(String.init)
         }
+        if args.contains("--splash-frames") {
+            // Frames of the launch animation, then quit.
+            var elapsed = 0.0
+            for t in [0.15, 0.35, 0.6, 0.9, 1.3, 1.5, 1.75, 2.4] {
+                try? await Task.sleep(for: .seconds(t - elapsed))
+                elapsed = t
+                capture(to: "\(dir)/splash-\(String(format: "%.2f", t)).png")
+            }
+            NSApp.terminate(nil)
+            return
+        }
         try? await Task.sleep(for: .seconds(2))
         if !app.config.onboarded {
             guard args.contains("--auto-onboard") else {

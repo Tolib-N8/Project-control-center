@@ -2,6 +2,11 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии — [SemVer](https://semver.org/lang/ru/).
 
+## [0.4.0] — 2026-10-03
+
+### Добавлено
+- Анимация запуска (~1,4 с): плитка логотипа появляется, орбита прорисовывается, луна делает круг и встаёт на место, затем логотип перелетает в строку с кнопками окна. Не показывается при «Уменьшить движение»; отключается флагом `--no-splash`.
+
 ## [0.3.0] — 2026-10-03
 
 ### Добавлено
@@ -49,6 +54,7 @@
 - Выводы и план строятся эвристиками; Claude API и Ollama — в следующих версиях.
 - Нет интеграции с GitHub (PR, CI), Telegram и почтой; Cursor только определяется.
 
+[0.4.0]: https://github.com/Tolib-N8/Project-control-center/releases/tag/v0.4.0
 [0.3.0]: https://github.com/Tolib-N8/Project-control-center/releases/tag/v0.3.0
 [0.2.0]: https://github.com/Tolib-N8/Project-control-center/releases/tag/v0.2.0
 [0.1.0]: https://github.com/Tolib-N8/Project-control-center/releases/tag/v0.1.0

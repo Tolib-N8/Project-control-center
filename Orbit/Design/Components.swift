@@ -358,30 +358,6 @@ struct PageHeader<Actions: View>: View {
     }
 }
 
-struct LogoMark: View {
-    var size: CGFloat = 26
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: size * 0.27)
-            .fill(Theme.accent)
-            .frame(width: size, height: size)
-            .overlay {
-                Canvas { ctx, s in
-                    let c = CGPoint(x: s.width / 2, y: s.height / 2)
-                    let r = s.width * 0.3
-                    ctx.stroke(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)),
-                               with: .color(Theme.bg), lineWidth: s.width * 0.09)
-                    let d = s.width * 0.22
-                    ctx.fill(Path(ellipseIn: CGRect(x: c.x - d / 2, y: c.y - d / 2, width: d, height: d)), with: .color(Theme.bg))
-                    let m = s.width * 0.2
-                    ctx.fill(Path(ellipseIn: CGRect(x: c.x + r * 0.7 - m / 2, y: c.y - r * 0.7 - m / 2, width: m, height: m)), with: .color(Theme.accent))
-                    ctx.stroke(Path(ellipseIn: CGRect(x: c.x + r * 0.7 - m / 2, y: c.y - r * 0.7 - m / 2, width: m, height: m)), with: .color(Theme.bg), lineWidth: s.width * 0.08)
-                }
-                .padding(size * 0.12)
-            }
-    }
-}
-
 struct EmptyHint: View {
     var symbol: String
     var title: String

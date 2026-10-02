@@ -10,7 +10,7 @@ struct SidebarView: View {
         VStack(alignment: .leading, spacing: 24) {
             // Sits on the same line as the window buttons (centred at y = 16), just to their right.
             HStack(spacing: 8) {
-                LogoMark(size: 20)
+                BrandLogo(size: 20)
                 Text("Orbit").uiFont(14.5, .semibold)
             }
             .frame(height: 32)
