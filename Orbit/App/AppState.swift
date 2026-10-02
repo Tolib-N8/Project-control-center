@@ -30,6 +30,7 @@ enum ActiveSheet: Identifiable {
     case brief(signalId: String)
     case transcript(sessionId: String)
     case addBlock(day: Int)
+    case update
 
     var id: String {
         switch self {
@@ -39,6 +40,7 @@ enum ActiveSheet: Identifiable {
         case .brief(let s): "brief-\(s)"
         case .transcript(let s): "transcript-\(s)"
         case .addBlock(let d): "add-\(d)"
+        case .update: "update"
         }
     }
 }
@@ -75,6 +77,18 @@ final class AppState {
     var aiBusy: Set<String> = []
     var aiError: String?
 
+    // Self-update
+    enum UpdatePhase: Equatable {
+        case idle, checking, upToDate
+        case downloading(Double)
+        case installing
+        case failed(String)
+    }
+    var availableUpdate: ReleaseInfo?
+    var updatePhase: UpdatePhase = .idle
+    var lastUpdateCheck: Date?
+    private var updateTimer: Timer?
+
     var isSyncing = false
     var lastSync: Date?
     var progress: [String: ProjectProgress] = [:]
@@ -105,6 +119,7 @@ final class AppState {
         timer = Timer.scheduledTimer(withTimeInterval: 15 * 60, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.refresh() }
         }
+        scheduleUpdateChecks()
         ticker?.invalidate()
         ticker = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -384,6 +399,97 @@ final class AppState {
     var aiLabel: String? {
         guard config.ai.isEnabled else { return nil }
         return config.ai.provider == .claudeCode ? "Claude" : config.ai.provider.title
+    }
+
+    // MARK: - Updates
+
+    private func scheduleUpdateChecks() {
+        guard Updater.isEnabled else { return }
+        updateTimer?.invalidate()
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { [weak self] _ in
+            Task { @MainActor in await self?.checkForUpdates() }
+        }
+        Task {
+            #if DEBUG
+            let immediate = ProcessInfo.processInfo.arguments.contains("--auto-update")
+            #else
+            let immediate = false
+            #endif
+            try? await Task.sleep(for: .seconds(immediate ? 1 : 10))
+            await checkForUpdates()
+        }
+    }
+
+    /// Automatic checks respect the settings and skipped versions; a manual check always reports back.
+    func checkForUpdates(manual: Bool = false) async {
+        guard Updater.isEnabled else {
+            if manual { toast = "Обновления работают только в установленной версии Orbit" }
+            return
+        }
+        guard manual || config.autoCheckUpdates else { return }
+        if case .downloading = updatePhase { return }
+        if updatePhase == .checking || updatePhase == .installing { return }
+
+        updatePhase = .checking
+        do {
+            let release = try await Updater.fetchLatest()
+            lastUpdateCheck = Date()
+            guard Updater.isNewer(release) else {
+                availableUpdate = nil
+                updatePhase = .upToDate
+                if manual { toast = "Установлена последняя версия — \(Updater.currentVersion)" }
+                return
+            }
+            if !manual && release.version == config.skippedVersion {
+                updatePhase = .idle
+                return
+            }
+            withMotion(Motion.page) { availableUpdate = release }
+            updatePhase = .idle
+            if manual {
+                sheet = .update
+            } else if config.notifiedUpdateVersion != release.version {
+                config.notifiedUpdateVersion = release.version
+                saveConfig()
+                Notifier.post(title: "Orbit \(release.version)", body: "Доступна новая версия — обновление займёт несколько секунд.")
+            }
+            #if DEBUG
+            let forced = ProcessInfo.processInfo.arguments.contains("--auto-update")
+            #else
+            let forced = false
+            #endif
+            if forced || (config.autoInstallUpdates && Updater.installBlocker == nil) { installUpdate() }
+        } catch {
+            updatePhase = manual ? .failed(error.localizedDescription) : .idle
+            if manual { toast = error.localizedDescription }
+        }
+    }
+
+    func installUpdate() {
+        guard let release = availableUpdate else { return }
+        if case .downloading = updatePhase { return }
+        updatePhase = .downloading(0)
+        Task {
+            do {
+                try await Updater.install(release) { [weak self] p in
+                    if case .downloading = self?.updatePhase { self?.updatePhase = .downloading(p) }
+                }
+                updatePhase = .installing
+                // The helper swaps the bundle as soon as we are gone and relaunches the new version.
+                try? await Task.sleep(for: .milliseconds(400))
+                NSApp.terminate(nil)
+            } catch {
+                updatePhase = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    func skipUpdate() {
+        guard let release = availableUpdate else { return }
+        config.skippedVersion = release.version
+        saveConfig()
+        withMotion { availableUpdate = nil }
+        sheet = nil
     }
 
     // MARK: - Projects

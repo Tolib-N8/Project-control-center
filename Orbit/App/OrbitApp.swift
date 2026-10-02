@@ -26,6 +26,9 @@ struct OrbitApp: App {
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1440, height: 1000)
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Проверить обновления…") { Task { await app.checkForUpdates(manual: true) } }
+            }
             CommandGroup(after: .newItem) {
                 Button("Обновить данные") { Task { await app.refresh() } }
                     .keyboardShortcut("r")
@@ -178,6 +181,7 @@ struct SheetHost: View {
         case .brief(let sid): BriefSheet(signalId: sid)
         case .transcript(let sid): TranscriptSheet(sessionId: sid)
         case .addBlock(let day): AddBlockSheet(day: day)
+        case .update: UpdateSheet()
         }
     }
 }

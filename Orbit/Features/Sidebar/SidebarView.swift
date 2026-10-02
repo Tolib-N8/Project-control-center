@@ -48,6 +48,11 @@ struct SidebarView: View {
             }
 
             Spacer(minLength: 0)
+            if let release = app.availableUpdate {
+                UpdateBanner(release: release)
+                    .padding(.bottom, -14)
+                    .transition(Motion.transition(Motion.rise))
+            }
             syncStatus
         }
         .padding(.horizontal, 14)
@@ -57,6 +62,7 @@ struct SidebarView: View {
         .background(Theme.surface)
         .overlay(alignment: .trailing) { Rectangle().fill(Theme.border).frame(width: 1) }
         .animation(Motion.pick(Motion.snappy), value: app.screen)
+        .animation(Motion.pick(Motion.page), value: app.availableUpdate)
         .animation(Motion.pick(Motion.snappy), value: app.config.activeProjects.map(\.id))
     }
 

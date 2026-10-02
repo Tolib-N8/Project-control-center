@@ -251,8 +251,33 @@ struct GeneralSettingsView: View {
             LabeledContent("Данные") {
                 Button(Store.root.path.abbreviatingHome) { Shell.reveal(Store.root.path) }
             }
-            LabeledContent("Версия") {
-                Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—")
+            Section("Обновления") {
+                LabeledContent("Версия") {
+                    HStack(spacing: 10) {
+                        Text(Updater.currentVersion)
+                        if let release = app.availableUpdate {
+                            Button("Обновить до \(release.version)") { app.sheet = .update }
+                        }
+                    }
+                }
+                Toggle("Проверять обновления автоматически", isOn: Binding(get: { app.config.autoCheckUpdates }, set: { app.config.autoCheckUpdates = $0; app.saveConfig() }))
+                Toggle("Устанавливать без вопроса", isOn: Binding(get: { app.config.autoInstallUpdates }, set: { app.config.autoInstallUpdates = $0; app.saveConfig() }))
+                    .disabled(!app.config.autoCheckUpdates)
+                LabeledContent("Последняя проверка") {
+                    HStack(spacing: 10) {
+                        Text(app.updatePhase == .checking ? "проверяю…" : app.lastUpdateCheck.map { DateFormat.ago($0, now: app.now) } ?? "ещё не было")
+                        Button("Проверить сейчас") { Task { await app.checkForUpdates(manual: true) } }
+                            .disabled(app.updatePhase == .checking)
+                    }
+                }
+                if let skipped = app.config.skippedVersion {
+                    LabeledContent("Пропущена версия \(skipped)") {
+                        Button("Не пропускать") { app.config.skippedVersion = nil; app.saveConfig() }
+                    }
+                }
+                if let blocker = Updater.installBlocker, Updater.isEnabled {
+                    Text(blocker).foregroundStyle(Theme.yellow)
+                }
             }
             Button("Пройти онбординг заново") { app.resetOnboarding() }
         }

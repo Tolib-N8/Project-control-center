@@ -68,6 +68,10 @@ struct OrbitConfig: Codable {
     var lastMorningBrief: String?
     var lastAutoPlanWeek: String?
     var ai = AIConfig()
+    var autoCheckUpdates = true
+    var autoInstallUpdates = false
+    var skippedVersion: String?
+    var notifiedUpdateVersion: String?
 
     init() {}
 
@@ -86,6 +90,10 @@ struct OrbitConfig: Codable {
         lastMorningBrief = try c.decodeIfPresent(String.self, forKey: .lastMorningBrief)
         lastAutoPlanWeek = try c.decodeIfPresent(String.self, forKey: .lastAutoPlanWeek)
         ai = try c.decodeIfPresent(AIConfig.self, forKey: .ai) ?? d.ai
+        autoCheckUpdates = try c.decodeIfPresent(Bool.self, forKey: .autoCheckUpdates) ?? d.autoCheckUpdates
+        autoInstallUpdates = try c.decodeIfPresent(Bool.self, forKey: .autoInstallUpdates) ?? d.autoInstallUpdates
+        skippedVersion = try c.decodeIfPresent(String.self, forKey: .skippedVersion)
+        notifiedUpdateVersion = try c.decodeIfPresent(String.self, forKey: .notifiedUpdateVersion)
     }
 
     func source(_ kind: AgentKind) -> AgentSourceConfig {

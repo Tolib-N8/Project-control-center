@@ -47,6 +47,10 @@ targets:
     platform: macOS
     sources:
       - path: OrbitTests
+        excludes:
+          - "*.json"
+      - path: OrbitTests/github-release-latest.json
+        buildPhase: resources
     dependencies:
       - target: Orbit
     settings:

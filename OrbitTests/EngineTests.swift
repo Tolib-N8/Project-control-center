@@ -343,3 +343,57 @@ final class AITests: XCTestCase {
         XCTAssertEqual(c.rhythm.weeklyHours, 35)
     }
 }
+
+final class UpdaterTests: XCTestCase {
+    private func fixture() throws -> Data {
+        let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "github-release-latest", withExtension: "json"))
+        return try Data(contentsOf: url)
+    }
+
+    func testSemVerOrdering() throws {
+        let v = { (s: String) in try XCTUnwrap(SemVer(s)) }
+        XCTAssertLessThan(try v("0.4.0"), try v("0.5.0"))
+        XCTAssertLessThan(try v("0.9.0"), try v("0.10.0"))
+        XCTAssertLessThan(try v("0.4"), try v("0.4.1"))
+        XCTAssertEqual(try v("v1.2.0"), try v("1.2"))
+        XCTAssertNil(SemVer("latest"))
+    }
+
+    func testParsesRealGitHubRelease() throws {
+        let release = try Updater.parse(try fixture())
+        XCTAssertEqual(release.version, "0.4.0")
+        XCTAssertEqual(release.assetName, "Orbit-0.4.0-macOS.zip")
+        XCTAssertEqual(release.sha256.count, 64)
+        XCTAssertTrue(release.assetURL.absoluteString.hasPrefix("https://github.com/Tolib-N8/"))
+        XCTAssertFalse(release.notes.isEmpty)
+    }
+
+    func testOnlyNewerVersionsAreOffered() throws {
+        let release = try Updater.parse(try fixture())
+        XCTAssertTrue(Updater.isNewer(release, than: "0.3.0"))
+        XCTAssertFalse(Updater.isNewer(release, than: "0.4.0"))
+        XCTAssertFalse(Updater.isNewer(release, than: "0.5.0"))
+    }
+
+    func testReleaseWithoutChecksumIsRejected() throws {
+        var obj = try XCTUnwrap(JSONSerialization.jsonObject(with: try fixture()) as? [String: Any])
+        var assets = try XCTUnwrap(obj["assets"] as? [[String: Any]])
+        assets[0]["digest"] = nil
+        obj["assets"] = assets
+        XCTAssertThrowsError(try Updater.parse(try JSONSerialization.data(withJSONObject: obj)))
+        obj["assets"] = [["name": "notes.txt", "browser_download_url": "https://x", "digest": "sha256:00"]]
+        XCTAssertThrowsError(try Updater.parse(try JSONSerialization.data(withJSONObject: obj)), "no app archive")
+    }
+
+    func testChecksumVerification() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("orbit-sha-\(UUID().uuidString)")
+        try Data("orbit".utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        // Reference value from the system shasum, independent of CryptoKit.
+        let actual = String(Shell.run("/usr/bin/shasum", ["-a", "256", file.path]).stdout.prefix(64))
+        let tampered = String(repeating: "0", count: 64)
+        XCTAssertNoThrow(try Updater.verifyChecksum(of: file, expected: actual))
+        XCTAssertNoThrow(try Updater.verifyChecksum(of: file, expected: actual.uppercased()))
+        XCTAssertThrowsError(try Updater.verifyChecksum(of: file, expected: tampered))
+    }
+}
