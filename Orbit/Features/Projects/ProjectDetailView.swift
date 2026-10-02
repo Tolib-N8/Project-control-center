@@ -51,8 +51,8 @@ struct ProjectDetailView: View {
                     app.sheet = .planner(weekKey: app.currentWeekKey)
                 }
                 OrbitButton("Терминал", icon: "terminal") { app.openTerminal(projectId) }
-                OrbitButton(app.isSyncing ? "Анализ…" : "Запустить анализ", icon: "sparkles", kind: .primary) {
-                    Task { await app.refresh() }
+                OrbitButton(app.isSyncing || app.aiBusy.contains("project:" + projectId) ? "Анализ…" : "Запустить анализ", icon: "sparkles", kind: .primary) {
+                    app.analyzeNow(projectId: projectId)
                 }
             }
         }
@@ -71,11 +71,18 @@ struct ProjectDetailView: View {
             .padding(.horizontal, 20).padding(.vertical, 18)
             .hairline()
 
-            if let digest = InsightEngine.sessionsDigest(snap) {
+            if let digest = app.digest(snap) {
                 HStack(alignment: .top, spacing: 14) {
                     IconBox(symbol: "sparkles", color: Theme.accent, size: 30)
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Вывод по последним \(min(5, snap.sessions.count)) сессиям").uiFont(13, .semibold, color: Theme.accent)
+                        HStack(spacing: 8) {
+                            Text("\(app.projectAI(snap.config.id) != nil ? "Вывод ИИ" : "Вывод") по последним \(min(5, snap.sessions.count)) сессиям")
+                                .uiFont(13, .semibold, color: Theme.accent)
+                            if let ai = app.projectAI(snap.config.id) {
+                                Text("\(ai.source) · \(DateFormat.relativeDay(ai.createdAt))").uiFont(11.5, color: Theme.text3)
+                            }
+                            if app.aiBusy.contains("project:" + snap.config.id) { ProgressView().controlSize(.mini) }
+                        }
                         Text(digest).uiFont(13.5).lineSpacing(5).fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -280,7 +287,7 @@ struct GitPanel: View {
                 }
                 ForEach(r.changes.prefix(8)) { c in
                     HStack(spacing: 10) {
-                        Text(c.status).monoFont(12.5, .medium, color: c.status == "A" ? Theme.green : c.status == "D" ? Theme.red : Theme.yellow)
+                        Text(c.status).monoFont(12.5, .medium, color: c.status == "?" ? Theme.text2 : c.status == "A" ? Theme.green : c.status == "D" ? Theme.red : Theme.yellow)
                             .frame(width: 12)
                         Text(c.path).monoFont(12.5).lineLimit(1).truncationMode(.head)
                         Spacer()

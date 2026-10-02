@@ -28,8 +28,8 @@ struct WeekView: View {
         let next = key != app.currentWeekKey ? " · следующая неделя" : ""
         return PageHeader(eyebrow: "Неделя \(Week.number(monday)) · \(DateFormat.short(monday)) — \(DateFormat.short(sunday))\(next)", title: title) {
             if !app.plan(key).blocks.isEmpty {
-                OrbitButton(app.isSyncing ? "Анализ…" : "Проанализировать", icon: "arrow.clockwise") {
-                    Task { await app.refresh() }
+                OrbitButton(app.isSyncing || !app.aiBusy.isEmpty ? "Анализ…" : "Проанализировать", icon: "arrow.clockwise") {
+                    app.analyzeNow()
                 }
             }
             OrbitButton("Запланировать", icon: "calendar.badge.plus", kind: .primary) {
@@ -112,7 +112,8 @@ struct TodayFocusCard: View {
     @ViewBuilder
     private func goalField(_ block: PlanBlock?) -> some View {
         if let block {
-            TextField("", text: $goal, prompt: Text("Цель дня: добавьте, что нужно сделать…").foregroundStyle(Theme.text3))
+            let suggestion = app.projectAI(block.projectId)?.goal ?? ""
+            TextField("", text: $goal, prompt: Text(suggestion.isEmpty ? "Цель дня: добавьте, что нужно сделать…" : "Цель дня: \(suggestion)").foregroundStyle(Theme.text3))
                 .textFieldStyle(.plain)
                 .font(OrbitFont.ui(14))
                 .foregroundStyle(Theme.text2)
@@ -191,8 +192,12 @@ struct TodayFocusCard: View {
     private func nextStepsPanel(_ snap: ProjectSnapshot) -> some View {
         InnerPanel {
             VStack(alignment: .leading, spacing: 12) {
-                panelHeading("checklist", "Следующие шаги")
-                ForEach(Array(InsightEngine.nextSteps(snap).enumerated()), id: \.offset) { i, step in
+                HStack {
+                    panelHeading("checklist", app.projectAI(snap.config.id) != nil ? "Следующие шаги от ИИ" : "Следующие шаги")
+                    Spacer()
+                    if app.aiBusy.contains("project:" + snap.config.id) { ProgressView().controlSize(.mini) }
+                }
+                ForEach(Array(app.nextSteps(snap).enumerated()), id: \.offset) { i, step in
                     HStack(alignment: .top, spacing: 8) {
                         Image(systemName: i == 0 ? "smallcircle.filled.circle" : "circle")
                             .font(.system(size: 13))
@@ -449,7 +454,7 @@ struct ProjectsTable: View {
         VStack(spacing: 0) {
             HStack(spacing: 16) {
                 col("Проект", width: 170)
-                col("Вывод по сессиям", flex: true)
+                col(app.aiLabel != nil ? "Вывод ИИ по сессиям" : "Вывод по сессиям", flex: true)
                 col("Git", width: 160)
                 col("Сессии / 7 дн.", width: 110)
                 col("Здоровье", width: 100)
@@ -488,7 +493,7 @@ struct ProjectsTable: View {
                 Text(snap.config.name).monoFont(13, .medium).lineLimit(1)
             }
             .frame(width: 170, alignment: .leading)
-            Text(InsightEngine.headline(snap)).uiFont(13).lineLimit(1)
+            Text(app.headline(snap)).uiFont(13).lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
             HStack(spacing: 6) {
                 Text(r.branch).lineLimit(1)

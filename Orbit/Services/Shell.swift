@@ -11,7 +11,8 @@ struct ShellResult {
 enum Shell {
     /// Runs an executable synchronously. Call off the main thread.
     @discardableResult
-    static func run(_ executable: String, _ args: [String], cwd: String? = nil, env: [String: String] = [:], timeout: TimeInterval = 60) -> ShellResult {
+    static func run(_ executable: String, _ args: [String], cwd: String? = nil, env: [String: String] = [:],
+                    input: String? = nil, timeout: TimeInterval = 60) -> ShellResult {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = args
@@ -39,7 +40,14 @@ enum Shell {
         }
         process.standardOutput = outHandle
         process.standardError = errHandle
-        process.standardInput = FileHandle.nullDevice
+        let inURL = tmp.appendingPathComponent("orbit-\(UUID().uuidString).in")
+        if let input {
+            try? input.write(to: inURL, atomically: true, encoding: .utf8)
+            process.standardInput = (try? FileHandle(forReadingFrom: inURL)) ?? FileHandle.nullDevice
+        } else {
+            process.standardInput = FileHandle.nullDevice
+        }
+        defer { try? FileManager.default.removeItem(at: inURL) }
 
         let done = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in done.signal() }
@@ -61,6 +69,19 @@ enum Shell {
             stdout: String(decoding: out, as: UTF8.self),
             stderr: String(decoding: err, as: UTF8.self)
         )
+    }
+
+    /// Runs a command through a login shell so PATH matches the user's terminal
+    /// (GUI apps do not see ~/.local/bin, Homebrew, nvm…).
+    static func login(_ command: String, _ args: [String], cwd: String? = nil, input: String? = nil, timeout: TimeInterval = 120) -> ShellResult {
+        run("/bin/zsh", ["-lc", "exec \"$0\" \"$@\"", command] + args, cwd: cwd, input: input, timeout: timeout)
+    }
+
+    /// Absolute path of a CLI found through the login shell, or nil.
+    static func which(_ command: String) -> String? {
+        let r = run("/bin/zsh", ["-lc", "command -v \(command)"], timeout: 10)
+        let path = r.stdout.split(separator: "\n").last.map { String($0).trimmingCharacters(in: .whitespaces) } ?? ""
+        return r.ok && path.hasPrefix("/") ? path : nil
     }
 
     @discardableResult

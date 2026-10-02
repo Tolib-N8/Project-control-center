@@ -38,6 +38,7 @@ enum Snapshotter {
         for name in names {
             switch name {
             case "first-launch": continue
+            case "wait": try? await Task.sleep(for: .seconds(30)); continue
             case "plan": app.savePlan(app.makePlan(weekKey: app.displayWeekKey)); continue
             case "week", "week-empty": app.screen = .week
             case "projects": app.screen = .projects

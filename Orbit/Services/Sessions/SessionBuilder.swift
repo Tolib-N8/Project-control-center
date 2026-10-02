@@ -303,9 +303,14 @@ final class SessionBuilder {
     }
 
     static func commitMessage(_ command: String) -> String? {
+        // Heredoc form: git commit -m "$(cat <<'EOF'\nsubject\n…EOF\n)"
+        if let heredoc = command.range(of: "<<'EOF'\n") ?? command.range(of: "<<EOF\n") {
+            return command[heredoc.upperBound...].split(separator: "\n").first.map(String.init)
+        }
         guard let r = command.range(of: #"-m\s+["']([^"'\n]+)"#, options: .regularExpression) else { return nil }
         let m = command[r].dropFirst(2).trimmingCharacters(in: .whitespaces)
-        return String(m.dropFirst())
+        let message = String(m.dropFirst())
+        return message.hasPrefix("$(") ? nil : message
     }
 }
 

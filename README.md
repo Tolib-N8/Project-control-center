@@ -8,7 +8,7 @@
 
 План недели по проектам · здоровье проектов · сессии Claude Code и Codex · состояние git — в одном нативном окне macOS.
 
-![Version](https://img.shields.io/badge/version-0.1.0-C8F169?style=flat-square&labelColor=15171A)
+![Version](https://img.shields.io/badge/version-0.2.0-C8F169?style=flat-square&labelColor=15171A)
 ![Platform](https://img.shields.io/badge/macOS-15%2B-ECEDEF?style=flat-square&logo=apple&logoColor=white&labelColor=15171A)
 ![Swift](https://img.shields.io/badge/SwiftUI-Swift%205-F59E5B?style=flat-square&logo=swift&logoColor=white&labelColor=15171A)
 ![Local first](https://img.shields.io/badge/данные-локально-5AD48A?style=flat-square&labelColor=15171A)
@@ -70,6 +70,21 @@ Claude Code, Codex и Aider: что сделано, где застрял, ск�
 </tr>
 </table>
 
+## 🧠 ИИ-анализ
+
+Orbit пишет выводы по проектам, следующие шаги, цель дня, разбор сессий агентов, сообщения коммитов и брифы для агентов. Модель выбирается в **Настройках → Анализ** (<kbd>⌘</kbd> <kbd>,</kbd>) или в онбординге:
+
+| Провайдер | Как работает | Что нужно |
+| --- | --- | --- |
+| **Claude · подписка** | `claude -p` в фоне — тот же аккаунт, что в Claude Code | Claude Code с входом в Pro / Max |
+| **Claude API** | Messages API, structured outputs | API-ключ Anthropic |
+| **Codex · подписка** | `codex exec` | Codex CLI с входом в ChatGPT |
+| **Ollama** | локальная модель | `ollama serve` |
+| **OpenAI-совместимый** | `/chat/completions` | Base URL и ключ (OpenAI, OpenRouter, LM Studio…) |
+| **Эвристики** | правила без модели | — (по умолчанию) |
+
+В модель уходят только **сводки**: названия файлов и веток, заголовки и итоги сессий, сообщения коммитов, ошибки тестов. Исходный код не отправляется — кроме диффа для сообщений коммитов, если включить это в настройках. Ключи хранятся в связке ключей macOS. Ответы кэшируются, а проект переанализируется только когда что-то изменилось и не чаще раза в 6 часов — подписка расходуется экономно.
+
 ## Экраны
 
 | | |
@@ -122,7 +137,8 @@ open ~/Library/Developer/Xcode/DerivedData/Orbit/Build/Products/Release/Orbit.ap
 | Сессии **Claude Code** | `~/.claude/projects/<папка>/*.jsonl` |
 | Сессии **Codex** | `~/.codex/sessions/**/rollout-*.jsonl` + `session_index.jsonl` |
 | Сессии **Aider** | `.aider.chat.history.md` в корне репозитория |
-| Здоровье, выводы, план, сигналы | локальные эвристики — `Orbit/Services` |
+| Здоровье, план, сигналы | локальные эвристики — `Orbit/Services` |
+| Выводы, шаги, разбор сессий | выбранная модель — `Orbit/Services/AI`, или эвристики |
 
 Логи парсятся один раз и кэшируются по размеру и времени изменения файла, поэтому повторное обновление занимает около секунды.
 
@@ -141,6 +157,7 @@ open ~/Library/Developer/Xcode/DerivedData/Orbit/Build/Products/Release/Orbit.ap
 | <kbd>⌘</kbd> <kbd>1</kbd>…<kbd>5</kbd> | Неделя · Проекты · Сессии · Git · Сигналы |
 | <kbd>⌘</kbd> <kbd>R</kbd> | Обновить данные |
 | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>P</kbd> | Запланировать неделю |
+| <kbd>⌘</kbd> <kbd>,</kbd> | Настройки (провайдер ИИ-анализа) |
 
 ## Структура проекта
 
@@ -150,6 +167,7 @@ Orbit/
 ├── Design/      токены темы и общие компоненты
 ├── Models/      проекты, git, сессии, план, сигналы
 ├── Services/    GitService, парсеры сессий, движки здоровья/выводов/сигналов, Planner
+│   └── AI/      провайдеры моделей и промпты анализа
 └── Features/    Неделя · Проекты · Сессии агентов · Git · Сигналы · Онбординг
 OrbitTests/      парсеры на фикстурах, git на временном репо, планировщик и сигналы
 design/          макеты Pencil и экспорты
@@ -177,7 +195,7 @@ Orbit.app/Contents/MacOS/Orbit --data-dir /tmp/orbit-data --snapshot /tmp/shots 
 ## Дорожная карта
 
 - [x] **0.1** — все экраны на реальных данных, эвристики вместо ИИ
-- [ ] Выводы и рекомендации через Claude API или локально через Ollama
+- [x] **0.2** — ИИ-анализ: Claude по подписке, Claude API, Codex, Ollama, OpenAI-совместимые
 - [ ] GitHub: открытые PR и статусы CI через `gh`
 - [ ] Уведомления в Telegram и на почту
 - [ ] Чаты Cursor

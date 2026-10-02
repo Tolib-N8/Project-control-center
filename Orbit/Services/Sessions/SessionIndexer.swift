@@ -8,7 +8,7 @@ enum SessionIndexer {
         var sessions: [AgentSession]
     }
 
-    private static let cacheName = "cache/sessions-v1.json"
+    private static let cacheName = "cache/sessions-v2.json"
     /// Logs not touched for this long are ignored.
     static let maxAgeDays: Double = 120
 

@@ -54,6 +54,12 @@ final class AppState {
     var sessionFilterProject: String?
     var selectedSessionId: String?
 
+    // AI analysis
+    var aiCache = AICache()
+    /// Keys of running jobs: "project:<id>", "session:<id>".
+    var aiBusy: Set<String> = []
+    var aiError: String?
+
     var isSyncing = false
     var lastSync: Date?
     var progress: [String: ProjectProgress] = [:]
@@ -73,6 +79,7 @@ final class AppState {
         }
         plans = Store.load([String: WeekPlan].self, from: "plans.json") ?? [:]
         signals = Store.load([Signal].self, from: "signals.json") ?? []
+        aiCache = Store.load(AICache.self, from: "ai-cache.json") ?? AICache()
         if config.onboarded { start() }
     }
 
@@ -145,6 +152,15 @@ final class AppState {
         lastSync = Date()
         now = Date()
         runSchedules()
+        if config.ai.autoAnalyze { analyzeProjects() }
+    }
+
+    /// "Проанализировать": fresh data, then a forced AI pass (heuristics only refresh).
+    func analyzeNow(projectId: String? = nil) {
+        Task {
+            await refresh()
+            analyzeProjects(force: true, only: projectId)
+        }
     }
 
     func recompute() {
@@ -216,11 +232,143 @@ final class AppState {
         }
         var parts = blocks.map { b -> String in
             let name = projectName(b.projectId)
-            let step = snapshots[b.projectId].map { InsightEngine.nextSteps($0).first ?? "" } ?? ""
+            let step = snapshots[b.projectId].map { nextSteps($0).first ?? "" } ?? ""
             return "\(name) \(Duration.hours(b.hours)) ч — \(step)"
         }
         if !activeSignals.isEmpty { parts.append("Сигналов: \(activeSignals.count)") }
         return parts.joined(separator: "\n")
+    }
+
+    // MARK: - AI analysis
+
+    private func makeProvider() -> AIProvider? {
+        do { return try AIProviders.make(config.ai) } catch {
+            aiError = error.localizedDescription
+            return nil
+        }
+    }
+
+    /// Re-analyses projects whose facts changed. Without `force`, a project is re-run at most
+    /// every `minHoursBetweenRuns` hours to save subscription limits.
+    func analyzeProjects(force: Bool = false, only projectId: String? = nil) {
+        guard config.ai.isEnabled, let provider = makeProvider() else { return }
+        var jobs: [(id: String, request: AIRequest, hash: String)] = []
+        for snap in activeSnapshots where projectId == nil || snap.config.id == projectId {
+            let id = snap.config.id
+            guard !aiBusy.contains("project:" + id) else { continue }
+            let (request, hash) = AnalysisService.projectRequest(snap, health: health[id] ?? 0,
+                                                                 signals: activeSignals.filter { $0.projectId == id })
+            if let cached = aiCache.projects[id], cached.source == provider.label {
+                if cached.inputHash == hash && !force { continue }
+                if !force && now.timeIntervalSince(cached.createdAt) < config.ai.minHoursBetweenRuns * 3600 { continue }
+            }
+            jobs.append((id, request, hash))
+        }
+        guard !jobs.isEmpty else { return }
+        for job in jobs { aiBusy.insert("project:" + job.id) }
+
+        Task {
+            // Two requests at a time is gentle on CLI subscriptions and local models.
+            await withTaskGroup(of: Void.self) { group in
+                var pending = jobs[...]
+                func next() {
+                    guard let job = pending.popFirst() else { return }
+                    group.addTask { await self.runProjectJob(provider, job.id, job.request, job.hash) }
+                }
+                next(); next()
+                for await _ in group { next() }
+            }
+        }
+    }
+
+    private func runProjectJob(_ provider: AIProvider, _ id: String, _ request: AIRequest, _ hash: String) async {
+        defer { aiBusy.remove("project:" + id) }
+        do {
+            let obj = try await provider.complete(request)
+            aiCache.projects[id] = try AnalysisService.parseProject(obj, source: provider.label, hash: hash)
+            aiError = nil
+            Store.save(aiCache, to: "ai-cache.json", pretty: false)
+        } catch {
+            aiError = "\(projectName(id)): \(error.localizedDescription)"
+        }
+    }
+
+    func analyzeSession(_ s: AgentSession, force: Bool = false) {
+        guard config.ai.isEnabled, !aiBusy.contains("session:" + s.id), let provider = makeProvider() else { return }
+        let (request, hash) = AnalysisService.sessionRequest(s)
+        if !force, let cached = aiCache.sessions[s.id], cached.inputHash == hash, cached.source == provider.label { return }
+        aiBusy.insert("session:" + s.id)
+        Task {
+            defer { aiBusy.remove("session:" + s.id) }
+            do {
+                let obj = try await provider.complete(request)
+                aiCache.sessions[s.id] = try AnalysisService.parseSession(obj, source: provider.label, hash: hash)
+                aiError = nil
+                Store.save(aiCache, to: "ai-cache.json", pretty: false)
+            } catch {
+                aiError = error.localizedDescription
+            }
+        }
+    }
+
+    func aiCommitMessage(_ projectId: String) async throws -> String {
+        guard let provider = try AIProviders.make(config.ai) else { throw AIError.notConfigured("ИИ-анализ выключен") }
+        let repo = repos[projectId] ?? RepoStatus()
+        let diff: String? = config.ai.sendDiffs ? await Task.detached { GitService.diff(projectId) }.value : nil
+        let request = AnalysisService.commitRequest(project: projectName(projectId), changes: repo.changes, diff: diff,
+                                                    sessions: snapshots[projectId]?.sessions ?? [])
+        let obj = try await provider.complete(request)
+        guard let message = obj["message"] as? String, !message.trimmed.isEmpty else { throw AIError.badResponse("пустое сообщение") }
+        return message.trimmed
+    }
+
+    func aiBrief(_ signalId: String) async throws -> String {
+        guard let provider = try AIProviders.make(config.ai) else { throw AIError.notConfigured("ИИ-анализ выключен") }
+        guard let signal = signals.first(where: { $0.id == signalId }), let snap = snapshots[signal.projectId] else {
+            throw AIError.notConfigured("Сигнал не найден")
+        }
+        let obj = try await provider.complete(AnalysisService.briefRequest(signal: signal, snapshot: snap))
+        guard let brief = obj["brief"] as? String, !brief.trimmed.isEmpty else { throw AIError.badResponse("пустой бриф") }
+        return brief.trimmed
+    }
+
+    func testAI() async -> (ok: Bool, message: String) {
+        do {
+            guard let provider = try AIProviders.make(config.ai) else { return (true, "Эвристики работают без модели") }
+            let started = Date()
+            let obj = try await provider.complete(AIProviders.testRequest)
+            let reply = obj["reply"] as? String ?? "ok"
+            return (true, "\(provider.label) ответил «\(reply)» за \(String(format: "%.1f", Date().timeIntervalSince(started))) с")
+        } catch {
+            return (false, error.localizedDescription)
+        }
+    }
+
+    func setAIProvider(_ kind: AIProviderKind) {
+        config.ai.provider = kind
+        aiError = nil
+        saveConfig()
+    }
+
+    // Results with heuristic fallback. AI answers are shown only while a model provider is selected.
+
+    func projectAI(_ id: String) -> ProjectAI? { config.ai.isEnabled ? aiCache.projects[id] : nil }
+    func sessionAI(_ id: String) -> SessionAI? { config.ai.isEnabled ? aiCache.sessions[id] : nil }
+
+    func headline(_ p: ProjectSnapshot) -> String { projectAI(p.config.id)?.headline ?? InsightEngine.headline(p) }
+    func cardSummary(_ p: ProjectSnapshot) -> String { projectAI(p.config.id)?.summary ?? InsightEngine.cardSummary(p) }
+    func digest(_ p: ProjectSnapshot) -> String? {
+        if let d = projectAI(p.config.id)?.digest, !d.isEmpty { return d }
+        return InsightEngine.sessionsDigest(p)
+    }
+    func nextSteps(_ p: ProjectSnapshot) -> [String] {
+        if let steps = projectAI(p.config.id)?.nextSteps, !steps.isEmpty { return steps }
+        return InsightEngine.nextSteps(p)
+    }
+
+    var aiLabel: String? {
+        guard config.ai.isEnabled else { return nil }
+        return config.ai.provider == .claudeCode ? "Claude" : config.ai.provider.title
     }
 
     // MARK: - Projects

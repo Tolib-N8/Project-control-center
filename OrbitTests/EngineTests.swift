@@ -202,7 +202,7 @@ final class GitServiceTests: XCTestCase {
         XCTAssertEqual(s.aheadMain, 1)
         XCTAssertEqual(Set(s.changes.map(\.path)), ["a.txt", "new.txt"])
         XCTAssertEqual(s.changes.first { $0.path == "a.txt" }?.added, 1)
-        XCTAssertEqual(s.changes.first { $0.path == "new.txt" }?.status, "A")
+        XCTAssertEqual(s.changes.first { $0.path == "new.txt" }?.status, "?", "untracked")
         XCTAssertEqual(s.lastCommit?.agent, .claude)
         XCTAssertEqual(s.commits.count, 2, "history of the current branch only")
     }
@@ -294,5 +294,52 @@ final class PlannerAndSignalsTests: XCTestCase {
         XCTAssertEqual(Plural.files(3), "3 файла")
         XCTAssertEqual(Plural.files(11), "11 файлов")
         XCTAssertEqual(Plural.files(22), "22 файла")
+    }
+}
+
+final class AITests: XCTestCase {
+    func testJSONExtractionToleratesNoise() {
+        XCTAssertEqual(JSONText.firstObject(in: "```json\n{\"a\": 1}\n```")?["a"] as? Int, 1)
+        XCTAssertEqual(JSONText.lastObject(in: "login banner\n{\"type\":\"result\",\"x\":2}\n")?["x"] as? Int, 2)
+    }
+
+    func testProjectAnswerParsing() throws {
+        let obj: [String: Any] = ["headline": " Стабильно ", "summary": "Ок.", "digest": "", "goal": "Цель",
+                                  "next_steps": ["Шаг 1", "", "Шаг 2", "Шаг 3", "Шаг 4"]]
+        let p = try AnalysisService.parseProject(obj, source: "test", hash: "h")
+        XCTAssertEqual(p.headline, "Стабильно")
+        XCTAssertEqual(p.nextSteps, ["Шаг 1", "Шаг 2", "Шаг 3"])
+    }
+
+    func testSchemaRequiresEveryField() {
+        let required = AnalysisService.projectSchema["required"] as? [String]
+        XCTAssertEqual(Set(required ?? []), ["headline", "summary", "digest", "next_steps", "goal"])
+        XCTAssertEqual(AnalysisService.projectSchema["additionalProperties"] as? Bool, false)
+    }
+
+    func testFactsHashIgnoresHourlyNoise() {
+        var repo = RepoStatus()
+        repo.changes = [FileChange(path: "a", status: "?", added: 0, removed: 0)]
+        repo.changesSince = Date().addingTimeInterval(-30 * 3600)
+        let snap = ProjectSnapshot(config: ProjectConfig(path: "/p/a", name: "a", colorIndex: 0), repo: repo, sessions: [])
+        let (r1, h1) = AnalysisService.projectRequest(snap, health: 80, signals: [])
+        repo.changesSince = Date().addingTimeInterval(-31 * 3600)
+        let snap2 = ProjectSnapshot(config: snap.config, repo: repo, sessions: [])
+        let (_, h2) = AnalysisService.projectRequest(snap2, health: 80, signals: [])
+        XCTAssertEqual(h1, h2, "an hour of ageing must not trigger re-analysis")
+        XCTAssertTrue(r1.prompt.contains("untracked a"))
+    }
+
+    func testHeredocCommitMessage() {
+        XCTAssertEqual(SessionBuilder.commitMessage("git commit -m \"$(cat <<'EOF'\nfeat: x\n\nbody\nEOF\n)\""), "feat: x")
+        XCTAssertEqual(SessionBuilder.commitMessage("git commit -m \"fix: y\""), "fix: y")
+    }
+
+    func testOldConfigWithoutAIDecodes() throws {
+        let json = #"{"onboarded": true, "projects": [], "scanRoots": ["~/x"]}"#
+        let c = try JSONDecoder().decode(OrbitConfig.self, from: Data(json.utf8))
+        XCTAssertTrue(c.onboarded)
+        XCTAssertEqual(c.ai.provider, .heuristics)
+        XCTAssertEqual(c.rhythm.weeklyHours, 35)
     }
 }

@@ -67,6 +67,26 @@ struct OrbitConfig: Codable {
     var terminalApp = "Terminal"
     var lastMorningBrief: String?
     var lastAutoPlanWeek: String?
+    var ai = AIConfig()
+
+    init() {}
+
+    /// Every key is optional so configs written by older versions keep loading.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = OrbitConfig()
+        onboarded = try c.decodeIfPresent(Bool.self, forKey: .onboarded) ?? d.onboarded
+        scanRoots = try c.decodeIfPresent([String].self, forKey: .scanRoots) ?? d.scanRoots
+        projects = try c.decodeIfPresent([ProjectConfig].self, forKey: .projects) ?? d.projects
+        agentSources = try c.decodeIfPresent([String: AgentSourceConfig].self, forKey: .agentSources) ?? d.agentSources
+        rhythm = try c.decodeIfPresent(Rhythm.self, forKey: .rhythm) ?? d.rhythm
+        rules = try c.decodeIfPresent([SignalRuleConfig].self, forKey: .rules) ?? d.rules
+        notifyMacOS = try c.decodeIfPresent(Bool.self, forKey: .notifyMacOS) ?? d.notifyMacOS
+        terminalApp = try c.decodeIfPresent(String.self, forKey: .terminalApp) ?? d.terminalApp
+        lastMorningBrief = try c.decodeIfPresent(String.self, forKey: .lastMorningBrief)
+        lastAutoPlanWeek = try c.decodeIfPresent(String.self, forKey: .lastAutoPlanWeek)
+        ai = try c.decodeIfPresent(AIConfig.self, forKey: .ai) ?? d.ai
+    }
 
     func source(_ kind: AgentKind) -> AgentSourceConfig {
         agentSources[kind.rawValue] ?? AgentSourceConfig()

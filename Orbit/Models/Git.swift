@@ -3,7 +3,7 @@ import Foundation
 struct FileChange: Codable, Hashable, Identifiable {
     var id: String { path }
     var path: String
-    /// One of M, A, D, R, ?
+    /// M, A (staged new), D, R, U (conflict) or ? (untracked)
     var status: String
     var added: Int
     var removed: Int

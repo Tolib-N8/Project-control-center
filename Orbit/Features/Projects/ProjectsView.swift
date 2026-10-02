@@ -99,8 +99,8 @@ struct ProjectCard: View {
                 }
                 HealthBar(score: score)
                 HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "sparkles").font(.system(size: 13)).foregroundStyle(Theme.accent)
-                    Text(InsightEngine.cardSummary(snap)).uiFont(13).lineSpacing(4).lineLimit(3)
+                    Image(systemName: app.projectAI(pid) != nil ? "sparkles" : "function").font(.system(size: 13)).foregroundStyle(Theme.accent)
+                    Text(app.cardSummary(snap)).uiFont(13).lineSpacing(4).lineLimit(3)
                         .frame(maxWidth: .infinity, minHeight: 58, maxHeight: 58, alignment: .topLeading)
                 }
                 Rectangle().fill(Theme.border).frame(height: 1)

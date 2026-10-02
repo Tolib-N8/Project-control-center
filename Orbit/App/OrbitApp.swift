@@ -41,6 +41,10 @@ struct OrbitApp: App {
             }
         }
 
+        Settings {
+            SettingsView().environment(app)
+        }
+
         MenuBarExtra {
             MenuBarContent().environment(app)
         } label: {

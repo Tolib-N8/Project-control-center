@@ -272,7 +272,7 @@ enum CommitMessage {
         if !paths.isEmpty && paths.allSatisfy(isTest) { type = "test" }
         else if !paths.isEmpty && paths.allSatisfy(isDoc) { type = "docs" }
         else if !paths.isEmpty && paths.allSatisfy(isConfig) { type = "chore" }
-        else if changes.contains(where: { $0.status == "A" }) { type = "feat" }
+        else if changes.contains(where: { $0.status == "A" || $0.status == "?" }) { type = "feat" }
         else { type = "fix" }
 
         var dirs: [String: Int] = [:]
@@ -300,6 +300,7 @@ struct CommitSheet: View {
     @State private var selected: Set<String> = []
     @State private var message = ""
     @State private var push = false
+    @State private var generating = false
 
     var body: some View {
         let repo = app.repos[projectId] ?? RepoStatus()
@@ -310,6 +311,10 @@ struct CommitSheet: View {
                     Text("ветка \(repo.branch) · сообщение составлено по файлам и последней сессии").uiFont(12.5, color: Theme.text2)
                 }
                 Spacer()
+                if app.config.ai.isEnabled {
+                    OrbitButton(generating ? "Пишу…" : "Сгенерировать с ИИ", icon: "sparkles") { generate() }
+                        .disabled(generating)
+                }
             }
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(repo.changes) { c in
@@ -317,7 +322,7 @@ struct CommitSheet: View {
                         if on { selected.insert(c.path) } else { selected.remove(c.path) }
                     })) {
                         HStack(spacing: 8) {
-                            Text(c.status).monoFont(12, .medium, color: c.status == "A" ? Theme.green : c.status == "D" ? Theme.red : Theme.yellow)
+                            Text(c.status).monoFont(12, .medium, color: c.status == "?" ? Theme.text2 : c.status == "A" ? Theme.green : c.status == "D" ? Theme.red : Theme.yellow)
                             Text(c.path).monoFont(12.5).lineLimit(1).truncationMode(.head)
                         }
                     }
@@ -350,8 +355,19 @@ struct CommitSheet: View {
         .frame(width: 720)
         .background(Theme.surface)
         .onAppear {
+            if app.config.ai.isEnabled { generate() }
             selected = Set(repo.changes.filter { !$0.path.hasSuffix("/") }.map(\.path))
             message = CommitMessage.suggest(changes: repo.changes, sessions: app.snapshots[projectId]?.sessions ?? [])
+        }
+    }
+}
+
+extension CommitSheet {
+    func generate() {
+        generating = true
+        Task {
+            do { message = try await app.aiCommitMessage(projectId) } catch { app.toast = error.localizedDescription }
+            generating = false
         }
     }
 }

@@ -67,7 +67,7 @@ enum HealthEngine {
             if age > 24 {
                 let pen = min(20, 8 + age / 12)
                 score -= pen
-                reasons.append("незакоммичено \(Int(age)) ч")
+                reasons.append("изменения не закоммичены дольше суток")
             } else {
                 score -= 2
             }

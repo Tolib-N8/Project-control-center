@@ -246,6 +246,7 @@ struct BriefSheet: View {
     @Environment(\.dismiss) private var dismiss
     var signalId: String
     @State private var text = ""
+    @State private var generating = false
 
     var body: some View {
         let signal = app.signals.first { $0.id == signalId }
@@ -264,6 +265,16 @@ struct BriefSheet: View {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(text, forType: .string)
                     app.toast = "Бриф скопирован"
+                }
+                if app.config.ai.isEnabled {
+                    OrbitButton(generating ? "Пишу…" : "Составить с ИИ", icon: "sparkles") {
+                        generating = true
+                        Task {
+                            do { text = try await app.aiBrief(signalId) } catch { app.toast = error.localizedDescription }
+                            generating = false
+                        }
+                    }
+                    .disabled(generating)
                 }
                 Spacer()
                 OrbitButton("Отмена") { dismiss() }

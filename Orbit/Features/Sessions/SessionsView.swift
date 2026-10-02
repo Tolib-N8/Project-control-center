@@ -159,6 +159,8 @@ struct SessionDetail: View {
 
     var body: some View {
         let s = session
+        let ai = app.sessionAI(s.id)
+        let busy = app.aiBusy.contains("session:" + s.id)
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 10) {
@@ -179,12 +181,12 @@ struct SessionDetail: View {
                     VStack(alignment: .leading, spacing: 22) {
                         section("checkmark.circle", "Что сделано", Theme.green) {
                             VStack(alignment: .leading, spacing: 8) {
-                                ForEach(Array(InsightEngine.doneBullets(s).enumerated()), id: \.offset) { _, b in
+                                ForEach(Array((ai?.done.isEmpty == false ? ai!.done : InsightEngine.doneBullets(s)).enumerated()), id: \.offset) { _, b in
                                     Text("— " + b).uiFont(13.5).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
                                 }
                             }
                         }
-                        if let stuck = InsightEngine.stuck(s) {
+                        if let stuck = ai.map({ $0.stuck.isEmpty ? nil : $0.stuck }) ?? InsightEngine.stuck(s) {
                             section("exclamationmark.triangle", "Где застрял", Theme.yellow) {
                                 Text(stuck).uiFont(13.5).lineSpacing(5).fixedSize(horizontal: false, vertical: true)
                                     .padding(18)
@@ -193,8 +195,8 @@ struct SessionDetail: View {
                                     .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.yellow.opacity(0.35)))
                             }
                         }
-                        section("sparkles", "Рекомендация", Theme.accent) {
-                            Text(InsightEngine.recommendation(s)).uiFont(13.5).lineSpacing(5).fixedSize(horizontal: false, vertical: true)
+                        section("sparkles", ai != nil ? "Рекомендация ИИ" : "Рекомендация", Theme.accent) {
+                            Text(ai.map { $0.recommendation.isEmpty ? InsightEngine.recommendation(s) : $0.recommendation } ?? InsightEngine.recommendation(s)).uiFont(13.5).lineSpacing(5).fixedSize(horizontal: false, vertical: true)
                         }
                         if !s.firstPrompt.isEmpty {
                             section("text.bubble", "Задача", Theme.text2) {
@@ -209,6 +211,15 @@ struct SessionDetail: View {
                                 OrbitButton("Транскрипт", icon: "scroll") { app.sheet = .transcript(sessionId: s.id) }
                             }
                             OrbitButton("Лог", icon: "doc.text.magnifyingglass") { Shell.reveal(s.logPath.components(separatedBy: "#").first ?? s.logPath) }
+                            if app.config.ai.isEnabled {
+                                OrbitButton(busy ? "ИИ разбирает…" : (ai == nil ? "Разобрать с ИИ" : "Обновить разбор"), icon: "sparkles") {
+                                    app.analyzeSession(s, force: true)
+                                }
+                                .disabled(busy)
+                            }
+                        }
+                        if let ai {
+                            Text("Разбор: \(ai.source) · \(DateFormat.relativeDay(ai.createdAt))").uiFont(11.5, color: Theme.text3)
                         }
                     }
                     .padding(20)
@@ -244,6 +255,10 @@ struct SessionDetail: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .cardStyle()
+        .task(id: s.id) {
+            // Opening a session analyses it once; the cache keeps repeat views free.
+            if app.config.ai.autoAnalyze { app.analyzeSession(s) }
+        }
     }
 
     private func tone(_ t: InsightEngine.TimelineItem.Tone) -> Color {

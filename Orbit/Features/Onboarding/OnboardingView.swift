@@ -26,7 +26,9 @@ struct OnboardingView: View {
             }
             HStack(spacing: 8) {
                 Image(systemName: "lock").font(.system(size: 11))
-                Text("Данные хранятся локально в ~/.orbit · анализ идёт на этом Mac, код никуда не отправляется")
+                Text(app.config.ai.isEnabled && app.config.ai.provider != .ollama
+                     ? "Данные хранятся локально в ~/.orbit · в модель уходят только сводки сессий и git, код не отправляется"
+                     : "Данные хранятся локально в ~/.orbit · анализ идёт на этом Mac, код никуда не отправляется")
             }
             .uiFont(12.5, color: Theme.text3)
             .padding(.bottom, 28)
@@ -222,9 +224,9 @@ struct OnboardingView: View {
             .cardStyle()
 
             Text("Чем анализировать сессии").uiFont(14, .semibold).padding(.top, 32).padding(.bottom, 14)
-            HStack(spacing: 16) {
-                analysisOption("cpu", "Локальные эвристики", "Правила по git и логам: здоровье, сигналы, план недели. Работает офлайн и мгновенно.", selected: true, soon: false)
-                analysisOption("sparkles", "Claude API / Ollama", "Развёрнутые выводы и рекомендации от модели. Появится в следующей версии.", selected: false, soon: true)
+            ProviderPicker()
+            if app.config.ai.provider.usesModel {
+                ProviderDetails().padding(.top, 12)
             }
 
             HStack {
@@ -279,30 +281,6 @@ struct OnboardingView: View {
             }
         }
         .padding(.horizontal, 20).padding(.vertical, 16)
-    }
-
-    private func analysisOption(_ icon: String, _ title: String, _ text: String, selected: Bool, soon: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: icon).foregroundStyle(selected ? Theme.accent : Theme.text3)
-                Text(title).uiFont(15, .semibold, color: soon ? Theme.text2 : Theme.text)
-                Spacer()
-                if soon {
-                    Tag(text: "скоро", color: Theme.text3)
-                } else {
-                    ZStack {
-                        Circle().strokeBorder(Theme.accent, lineWidth: 1.5)
-                        Circle().fill(Theme.accent).padding(5)
-                    }
-                    .frame(width: 20, height: 20)
-                }
-            }
-            Text(text).uiFont(13, color: Theme.text2).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(selected ? Theme.accent.opacity(0.05) : Theme.surface, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(selected ? Theme.accent.opacity(0.8) : Theme.border, lineWidth: selected ? 1.5 : 1))
     }
 
     // MARK: - Step 3

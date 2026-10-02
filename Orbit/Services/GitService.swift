@@ -70,7 +70,7 @@ enum GitService {
                 let path = String(line.dropFirst(2))
                 if changes[path] == nil { order.append(path) }
                 let isDir = path.hasSuffix("/")
-                changes[path] = FileChange(path: path, status: "A", added: isDir || changes.count > 300 ? 0 : lineCount(repo, path), removed: 0)
+                changes[path] = FileChange(path: path, status: "?", added: isDir || changes.count > 300 ? 0 : lineCount(repo, path), removed: 0)
             } else if s.branch == "(detached)" || line.hasPrefix("# branch.oid") {
                 continue
             }

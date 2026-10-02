@@ -108,6 +108,19 @@ struct SidebarView: View {
 
     private var syncStatus: some View {
         VStack(alignment: .leading, spacing: 4) {
+            if !app.aiBusy.isEmpty || app.aiError != nil {
+                HStack(spacing: 8) {
+                    if app.aiBusy.isEmpty {
+                        Image(systemName: "exclamationmark.triangle").font(.system(size: 10)).foregroundStyle(Theme.yellow)
+                        Text("Ошибка ИИ-анализа").uiFont(12, .medium, color: Theme.yellow)
+                    } else {
+                        ProgressView().controlSize(.mini).frame(width: 6, height: 6)
+                        Text("ИИ-анализ · \(app.aiBusy.count)").uiFont(12, .medium)
+                    }
+                }
+                .help(app.aiError ?? "")
+                .padding(.bottom, 4)
+            }
             HStack(spacing: 8) {
                 if app.isSyncing {
                     ProgressView().controlSize(.mini).frame(width: 6, height: 6)
@@ -117,8 +130,19 @@ struct SidebarView: View {
                     Text(app.lastSync == nil ? "Ожидание" : "Синхронизировано").uiFont(12, .medium)
                 }
             }
-            Text("\(Plural.repos(app.config.activeProjects.count)) · \(app.lastSync.map { DateFormat.ago($0, now: app.now) } ?? "—")")
-                .uiFont(11.5, color: Theme.text3)
+            HStack {
+                Text("\(Plural.repos(app.config.activeProjects.count)) · \(app.lastSync.map { DateFormat.ago($0, now: app.now) } ?? "—")")
+                    .uiFont(11.5, color: Theme.text3)
+                Spacer()
+                SettingsLink {
+                    Image(systemName: "gearshape").font(.system(size: 12)).foregroundStyle(Theme.text3)
+                }
+                .buttonStyle(PlainButtonStyle2())
+                .help("Настройки (⌘,)")
+            }
+            if let label = app.aiLabel {
+                Text("Анализ: \(label)").uiFont(11.5, color: Theme.text3)
+            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
