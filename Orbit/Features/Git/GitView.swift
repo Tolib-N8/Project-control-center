@@ -27,12 +27,12 @@ struct GitView: View {
             }
 
             HStack(alignment: .top, spacing: 28) {
-                CommitChart(snaps: snaps)
-                totals(snaps).frame(width: 320)
+                CommitChart(snaps: snaps).appearStagger(0)
+                totals(snaps).frame(width: 320).appearStagger(1)
             }
             .fixedSize(horizontal: false, vertical: true)
 
-            repoTable(snaps)
+            repoTable(snaps).appearStagger(2)
 
             HStack(alignment: .top, spacing: 28) {
                 Card(padding: 20) {
@@ -49,6 +49,7 @@ struct GitView: View {
                 }
                 abandoned(snaps)
             }
+            .appearStagger(3)
         }
         .alert(item: $confirm) { action in
             Alert(
@@ -94,7 +95,7 @@ struct GitView: View {
         HStack {
             Text(k).uiFont(13.5, color: Theme.text2)
             Spacer()
-            Text(v).uiFont(13.5, .medium, color: color)
+            Text(v).uiFont(13.5, .medium, color: color).numericTransition(v)
         }
     }
 
@@ -111,8 +112,9 @@ struct GitView: View {
             .padding(.horizontal, 20).padding(.vertical, 14)
             .hairline()
             ForEach(Array(snaps.enumerated()), id: \.element.config.id) { i, s in
-                Button { app.screen = .project(s.config.id) } label: { repoRow(s) }
+                Button { app.screen = .project(s.config.id) } label: { repoRow(s).hoverHighlight() }
                     .buttonStyle(PlainButtonStyle2())
+                    .appearStagger(i + 3)
                 if i < snaps.count - 1 { Rectangle().fill(Theme.border).frame(height: 1) }
             }
         }
@@ -194,8 +196,10 @@ struct GitView: View {
                         }
                     }
                     .padding(.vertical, 6)
+                    .transition(Motion.transition(.opacity.combined(with: .move(edge: .leading))))
                 }
             }
+            .animation(Motion.pick(Motion.page), value: items.map(\.1.name))
         }
     }
 }
@@ -203,6 +207,7 @@ struct GitView: View {
 struct CommitChart: View {
     @Environment(AppState.self) private var app
     var snaps: [ProjectSnapshot]
+    @State private var grown = false
 
     var body: some View {
         let cal = Week.calendar
@@ -231,22 +236,26 @@ struct CommitChart: View {
                                 if you > 0 {
                                     UnevenRoundedRectangle(topLeadingRadius: 3, topTrailingRadius: 3)
                                         .fill(Theme.text3.opacity(0.6))
-                                        .frame(height: 130 * CGFloat(you) / CGFloat(maxValue))
+                                        .frame(height: grown ? 130 * CGFloat(you) / CGFloat(maxValue) : 0)
                                 }
                                 if agents > 0 {
                                     Rectangle()
                                         .fill(isToday ? Theme.accent : Theme.violet)
-                                        .frame(height: 130 * CGFloat(agents) / CGFloat(maxValue))
+                                        .frame(height: grown ? 130 * CGFloat(agents) / CGFloat(maxValue) : 0)
                                 }
                                 if agents + you == 0 { Rectangle().fill(Theme.border).frame(height: 2) }
                             }
                             .frame(height: 130)
+                            // Columns rise one after another, left to right.
+                            .animation(Motion.pick(Motion.grow).delay(Motion.reduced ? 0 : Double(data.firstIndex { $0.0 == d } ?? 0) * 0.025), value: grown)
                             .help("\(DateFormat.short(d)): агенты \(agents), вы \(you)")
                             Text("\(cal.component(.day, from: d))").monoFont(11.5, color: isToday ? Theme.accent : Theme.text3)
                         }
                         .frame(maxWidth: .infinity)
                     }
                 }
+                .animation(Motion.pick(Motion.grow), value: data.map { $0.1 + $0.2 })
+                .onAppear { grown = true }
             }
         }
     }

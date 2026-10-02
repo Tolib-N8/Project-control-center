@@ -10,12 +10,12 @@ struct WeekView: View {
                 FirstLaunchContent()
             } else {
                 HStack(alignment: .top, spacing: 20) {
-                    TodayFocusCard()
-                    AttentionCard().frame(width: 300)
+                    TodayFocusCard().appearStagger(0)
+                    AttentionCard().frame(width: 300).appearStagger(1)
                 }
                 .fixedSize(horizontal: false, vertical: true)
-                WeekStrip()
-                ProjectsTable()
+                WeekStrip().appearStagger(2)
+                ProjectsTable().appearStagger(3)
             }
         }
     }
@@ -86,6 +86,7 @@ struct TodayFocusCard: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     HStack(alignment: .lastTextBaseline, spacing: 4) {
                         Text("\(score)").font(OrbitFont.ui(40, .semibold)).tracking(-1).foregroundStyle(Theme.healthColor(score))
+                            .numericTransition(score)
                         Text("/100").uiFont(14, color: Theme.text3)
                     }
                     Text("Здоровье проекта" + (trend == 0 ? "" : trend > 0 ? " ↑ \(trend)" : " ↓ \(-trend)")).uiFont(12, color: Theme.text2)
@@ -197,15 +198,17 @@ struct TodayFocusCard: View {
                     Spacer()
                     if app.aiBusy.contains("project:" + snap.config.id) { ProgressView().controlSize(.mini) }
                 }
-                ForEach(Array(app.nextSteps(snap).enumerated()), id: \.offset) { i, step in
+                ForEach(Array(app.nextSteps(snap).enumerated()), id: \.element) { i, step in
                     HStack(alignment: .top, spacing: 8) {
                         Image(systemName: i == 0 ? "smallcircle.filled.circle" : "circle")
                             .font(.system(size: 13))
                             .foregroundStyle(i == 0 ? Theme.accent : Theme.text3)
                         Text(step).uiFont(13).fixedSize(horizontal: false, vertical: true)
                     }
+                    .transition(Motion.transition(Motion.rise))
                 }
             }
+            .animation(Motion.pick(Motion.content), value: app.nextSteps(snap))
         }
     }
 }
@@ -239,13 +242,15 @@ struct AttentionCard: View {
                         .padding(.top, 24)
                 } else {
                     ForEach(Array(signals.enumerated()), id: \.element.id) { i, s in
-                        Button { app.screen = .signals } label: { row(s) }
+                        Button { app.screen = .signals } label: { row(s).hoverHighlight() }
                             .buttonStyle(PlainButtonStyle2())
+                            .transition(Motion.transition(Motion.rise))
                         if i < signals.count - 1 { Rectangle().fill(Theme.border).frame(height: 1).padding(.horizontal, 20) }
                     }
                 }
                 Spacer(minLength: 0)
             }
+            .animation(Motion.pick(Motion.snappy), value: signals.map(\.id))
         }
     }
 
@@ -269,6 +274,7 @@ struct AttentionCard: View {
 
 struct WeekStrip: View {
     @Environment(AppState.self) private var app
+    @Namespace private var blocksSpace
     var weekKey: String?
     var minHeight: CGFloat = 196
 
@@ -299,10 +305,12 @@ struct WeekStrip: View {
                     DayColumn(day: d, date: Week.day(d, of: monday), blocks: plan.blocks(on: d),
                               isToday: key == app.currentWeekKey && d == today,
                               isPast: key == app.currentWeekKey && d < today,
-                              capacity: app.config.rhythm.hours[d], weekKey: key)
+                              capacity: app.config.rhythm.hours[d], weekKey: key, space: blocksSpace)
                         .frame(minHeight: minHeight, alignment: .top)
+                        .appearStagger(d)
                 }
             }
+            .animation(Motion.pick(Motion.snappy), value: plan)
         }
     }
 
@@ -326,6 +334,7 @@ struct DayColumn: View {
     var isPast: Bool
     var capacity: Int
     var weekKey: String
+    var space: Namespace.ID
     @State private var dropTargeted = false
 
     var body: some View {
@@ -336,7 +345,11 @@ struct DayColumn: View {
                 Text("\(Week.calendar.component(.day, from: date))")
                     .uiFont(16, .medium, color: isPast && blocks.isEmpty ? Theme.text3 : Theme.text)
             }
-            ForEach(blocks) { b in BlockChip(block: b, date: date, isPast: isPast, isToday: isToday, weekKey: weekKey) }
+            ForEach(blocks) { b in
+                BlockChip(block: b, date: date, isPast: isPast, isToday: isToday, weekKey: weekKey)
+                    .matchedGeometryEffect(id: b.id, in: space)
+                    .transition(Motion.transition(Motion.pop))
+            }
 
             if blocks.isEmpty && capacity == 0 {
                 Spacer(minLength: 40)
@@ -354,10 +367,12 @@ struct DayColumn: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(isToday ? Theme.accent.opacity(0.7) : dropTargeted ? Theme.text2 : Theme.border, lineWidth: isToday ? 1.5 : 1))
+        .background(Theme.accent.opacity(dropTargeted ? 0.05 : 0), in: RoundedRectangle(cornerRadius: 10))
+        .scaleEffect(dropTargeted && !Motion.reduced ? 1.015 : 1)
         .dropDestination(for: PlanDragItem.self) { items, _ in
             for item in items { app.addBlock(projectId: item.projectId, day: day, weekKey: weekKey) }
             return !items.isEmpty
-        } isTargeted: { dropTargeted = $0 }
+        } isTargeted: { t in withMotion { dropTargeted = t } }
     }
 
     private var addMenu: some View {
@@ -465,8 +480,9 @@ struct ProjectsTable: View {
             .hairline()
 
             ForEach(Array(rows.enumerated()), id: \.element.config.id) { i, snap in
-                Button { app.screen = .project(snap.config.id) } label: { row(snap) }
+                Button { app.screen = .project(snap.config.id) } label: { row(snap).hoverHighlight() }
                     .buttonStyle(PlainButtonStyle2())
+                    .appearStagger(i + 4)
                 if i < rows.count - 1 { Rectangle().fill(Theme.border).frame(height: 1) }
             }
         }
@@ -494,6 +510,8 @@ struct ProjectsTable: View {
             }
             .frame(width: 170, alignment: .leading)
             Text(app.headline(snap)).uiFont(13).lineLimit(1)
+                .contentTransition(.opacity)
+                .animation(Motion.pick(Motion.content), value: app.headline(snap))
                 .frame(maxWidth: .infinity, alignment: .leading)
             HStack(spacing: 6) {
                 Text(r.branch).lineLimit(1)
@@ -506,7 +524,7 @@ struct ProjectsTable: View {
             Text(Plural.sessions(week)).uiFont(13, color: Theme.text2).frame(width: 110, alignment: .leading)
             HStack(spacing: 12) {
                 HealthBar(score: score).frame(width: 56)
-                Text("\(score)").uiFont(13, .semibold, color: Theme.healthColor(score))
+                Text("\(score)").uiFont(13, .semibold, color: Theme.healthColor(score)).numericTransition(score)
             }
             .frame(width: 100, alignment: .leading)
             plannedText(pid).frame(width: 100, alignment: .leading)

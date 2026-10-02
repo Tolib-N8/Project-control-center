@@ -39,6 +39,20 @@ enum Snapshotter {
             switch name {
             case "first-launch": continue
             case "wait": try? await Task.sleep(for: .seconds(30)); continue
+            case _ where name.hasPrefix("frames:"):
+                // frames:projects → three captures mid-transition to check that motion happens.
+                let target = String(name.dropFirst("frames:".count))
+                switch target {
+                case "projects": app.screen = .projects
+                case "project": if let p = app.activeSnapshots.first { app.screen = .project(p.config.id) }
+                case "sessions": app.screen = .sessions
+                default: app.screen = .week
+                }
+                for (i, delay) in [0.05, 0.12, 0.6].enumerated() {
+                    try? await Task.sleep(for: .seconds(delay - (i == 0 ? 0 : [0.05, 0.12, 0.6][i - 1])))
+                    capture(to: "\(dir)/frames-\(target)-\(i + 1).png")
+                }
+                continue
             case "plan": app.savePlan(app.makePlan(weekKey: app.displayWeekKey)); continue
             case "week", "week-empty": app.screen = .week
             case "projects": app.screen = .projects

@@ -22,11 +22,12 @@ struct WeekPlannerSheet: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("План составлен по состоянию проектов").uiFont(13.5, .semibold)
                         Text(rationale).uiFont(13, color: Theme.text2).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
+                            .contentTransition(.opacity)
                     }
                     Spacer()
                     OrbitButton("Другой вариант", icon: "arrow.triangle.2.circlepath") {
                         seed += 1
-                        plan = app.makePlan(weekKey: weekKey, seed: seed)
+                        withMotion(Motion.page) { plan = app.makePlan(weekKey: weekKey, seed: seed) }
                     }
                 }
                 .padding(.horizontal, 32)
@@ -35,6 +36,9 @@ struct WeekPlannerSheet: View {
                 .hairline()
             }
             grid(monday)
+                .animation(Motion.pick(Motion.snappy), value: plan.blocks)
+                .id(weekKey)
+                .transition(Motion.transition(.opacity))
             footer(capacity: capacity)
         }
         .frame(width: 960)
@@ -81,9 +85,11 @@ struct WeekPlannerSheet: View {
 
     private func shiftWeek(_ delta: Int) {
         guard let monday = Week.date(fromKey: weekKey) else { return }
-        weekKey = Week.key(Week.calendar.date(byAdding: .day, value: 7 * delta, to: monday)!)
-        seed = 0
-        load()
+        withMotion(Motion.page) {
+            weekKey = Week.key(Week.calendar.date(byAdding: .day, value: 7 * delta, to: monday)!)
+            seed = 0
+            load()
+        }
     }
 
     private func grid(_ monday: Date) -> some View {
@@ -161,6 +167,7 @@ struct WeekPlannerSheet: View {
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 7))
                     Text("\(Duration.hours(hours)) ч").monoFont(13, .semibold, color: color)
+                        .numericTransition(hours)
                 }
             }
             .frame(height: 46)

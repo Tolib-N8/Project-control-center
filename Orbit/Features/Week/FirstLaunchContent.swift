@@ -9,7 +9,10 @@ struct FirstLaunchContent: View {
             HStack(alignment: .top, spacing: 48) {
                 VStack(alignment: .leading, spacing: 16) {
                     IconBox(symbol: "sparkles", color: Theme.accent, size: 40)
+                        .symbolEffect(.pulse, options: .repeating, isActive: app.lastSync == nil && !Motion.reduced)
                     Text(app.lastSync == nil ? "Orbit изучает ваши проекты" : "Проекты изучены — пора планировать")
+                        .contentTransition(.opacity)
+                        .animation(Motion.pick(Motion.content), value: app.lastSync == nil)
                         .font(OrbitFont.ui(24, .semibold)).tracking(-0.4)
                     Text(intro)
                         .uiFont(14, color: Theme.text2).lineSpacing(5)
@@ -32,7 +35,7 @@ struct FirstLaunchContent: View {
             }
         }
 
-        WeekStrip(minHeight: 230)
+        WeekStrip(minHeight: 230).appearStagger(1)
 
         HStack(spacing: 8) {
             Image(systemName: "calendar.badge.clock").foregroundStyle(Theme.text3)
@@ -41,9 +44,9 @@ struct FirstLaunchContent: View {
         .frame(maxWidth: .infinity)
 
         HStack(alignment: .top, spacing: 20) {
-            infoCard("sun.max", "Утренняя сводка", "Каждое утро — проект дня, на чём остановился агент и что делать первым.")
-            infoCard("bell", "Сигналы", "Orbit заметит отставшие ветки, незакоммиченные файлы и зациклившихся агентов.")
-            infoCard("brain", "Контекст для агентов", "«Продолжить с контекстом» возобновит прошлую сессию — агенту не придётся разбираться заново.")
+            infoCard("sun.max", "Утренняя сводка", "Каждое утро — проект дня, на чём остановился агент и что делать первым.").appearStagger(2)
+            infoCard("bell", "Сигналы", "Orbit заметит отставшие ветки, незакоммиченные файлы и зациклившихся агентов.").appearStagger(3)
+            infoCard("brain", "Контекст для агентов", "«Продолжить с контекстом» возобновит прошлую сессию — агенту не придётся разбираться заново.").appearStagger(4)
         }
     }
 
@@ -61,7 +64,7 @@ struct FirstLaunchContent: View {
             HStack {
                 Text("Прогресс анализа").uiFont(13, .semibold, color: Theme.text2)
                 Spacer()
-                Text("\(Int(overall * 100))%").monoFont(12.5, color: Theme.accent)
+                Text("\(Int(overall * 100))%").monoFont(12.5, color: Theme.accent).numericTransition(Int(overall * 100))
             }
             .padding(.bottom, 12)
             .hairline()
@@ -70,16 +73,19 @@ struct FirstLaunchContent: View {
                 HStack(spacing: 12) {
                     Image(systemName: prog.phase == .done ? "checkmark.circle" : prog.phase == .running ? "circle.dashed" : "circle.dotted")
                         .foregroundStyle(prog.phase == .done ? Theme.green : prog.phase == .running ? Theme.accent : Theme.text3)
+                        .contentTransition(.symbolEffect(.replace))
                     ProjectSquare(colorIndex: p.colorIndex)
                     Text(p.name).monoFont(13, color: prog.phase == .queued ? Theme.text3 : Theme.text).lineLimit(1)
                         .frame(width: 150, alignment: .leading)
                     ProgressLine(fraction: prog.phase == .done ? Double(app.health[p.id] ?? 0) / 100 : prog.phase == .running ? app.analysisFraction * 0.8 : 0,
                                  color: prog.phase == .done ? Theme.healthColor(app.health[p.id] ?? 0) : Theme.accent)
                     Text(prog.detail).uiFont(12.5, color: prog.phase == .done ? Theme.text : Theme.text3)
+                        .contentTransition(.opacity)
                         .frame(width: 110, alignment: .trailing)
                 }
                 .padding(.vertical, 12)
                 .hairline()
+                .animation(Motion.pick(Motion.content), value: prog)
             }
         }
     }

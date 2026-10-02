@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SessionsView: View {
     @Environment(AppState.self) private var app
+    @Namespace private var listSpace
     @State private var agent: AgentKind?
     @State private var period = 30
 
@@ -25,14 +26,22 @@ struct SessionsView: View {
             }
 
             HStack(spacing: 20) {
-                ForEach(agentsShown, id: \.self) { a in AgentStatsCard(agent: a, sessions: list.filter { $0.agent == a }) }
+                ForEach(Array(agentsShown.enumerated()), id: \.element) { i, a in
+                    AgentStatsCard(agent: a, sessions: list.filter { $0.agent == a }).appearStagger(i)
+                }
             }
 
             HStack(alignment: .top, spacing: 28) {
                 sessionList(list)
                     .frame(width: 440)
+                    .appearStagger(2)
                 if let selected = list.first(where: { $0.id == app.selectedSessionId }) ?? list.first {
+                    // A new session fades in with a slight rise; the old one just fades out.
                     SessionDetail(session: selected)
+                        .id(selected.id)
+                        .transition(Motion.transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 6)),
+                                                                  removal: .opacity.animation(.easeOut(duration: 0.08)))))
+                        .appearStagger(3)
                 } else {
                     EmptyHint(symbol: "cpu", title: "Сессий нет", text: "За выбранный период агенты не работали в подключённых проектах.")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -40,6 +49,7 @@ struct SessionsView: View {
                 }
             }
             .frame(maxHeight: .infinity)
+            .animation(Motion.pick(Motion.content), value: app.selectedSessionId)
         }
         .padding(.horizontal, 36)
         .padding(.top, 28)
@@ -78,6 +88,7 @@ struct SessionsView: View {
                 }
             }
             .padding(.bottom, 12)
+            .animation(Motion.pick(Motion.snappy), value: list.map(\.id))
         }
         .frame(maxHeight: .infinity)
         .cardStyle()
@@ -92,7 +103,7 @@ struct SessionsView: View {
 
     private func row(_ s: AgentSession) -> some View {
         let selected = s.id == (app.selectedSessionId ?? filtered.first?.id)
-        return Button { app.selectedSessionId = s.id } label: {
+        return Button { withMotion { app.selectedSessionId = s.id } } label: {
             HStack(alignment: .top, spacing: 12) {
                 Dot(color: s.status.color, size: 7).padding(.top, 6)
                 VStack(alignment: .leading, spacing: 5) {
@@ -108,8 +119,14 @@ struct SessionsView: View {
                 }
             }
             .padding(.horizontal, 24).padding(.vertical, 12)
-            .background(selected ? Theme.surface2 : .clear)
-            .overlay(alignment: .leading) { if selected { Rectangle().fill(Theme.accent).frame(width: 2) } }
+            .background {
+                // Highlight and accent bar slide to the selected row.
+                if selected {
+                    Theme.surface2.matchedGeometryEffect(id: "selected", in: listSpace)
+                        .overlay(alignment: .leading) { Rectangle().fill(Theme.accent).frame(width: 2) }
+                }
+            }
+            .hoverHighlight()
             .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle2())
@@ -134,11 +151,11 @@ struct AgentStatsCard: View {
                     Text(Duration.text(minutes: minutes)).uiFont(12.5, color: Theme.text3)
                 }
                 HStack(alignment: .firstTextBaseline) {
-                    Text("\(sessions.count)").font(OrbitFont.ui(30, .semibold))
+                    Text("\(sessions.count)").font(OrbitFont.ui(30, .semibold)).numericTransition(sessions.count)
                     Text(Plural.ru(sessions.count, "сессия", "сессии", "сессий")).uiFont(14, color: Theme.text2)
                     Spacer()
                     if !sessions.isEmpty {
-                        Text("\(rate)% успешных").uiFont(14, .medium, color: rate >= 70 ? Theme.green : rate >= 50 ? Theme.yellow : Theme.red)
+                        Text("\(rate)% успешных").uiFont(14, .medium, color: rate >= 70 ? Theme.green : rate >= 50 ? Theme.yellow : Theme.red).numericTransition(rate)
                     }
                 }
                 SegmentBar(segments: sessions.isEmpty ? [(1, Theme.border)] : [(Double(done), Theme.green), (Double(stuck), Theme.yellow), (Double(rolled), Theme.red)])
@@ -223,6 +240,7 @@ struct SessionDetail: View {
                         }
                     }
                     .padding(20)
+                    .animation(Motion.pick(Motion.content), value: ai)
                 }
                 .frame(maxWidth: .infinity)
 

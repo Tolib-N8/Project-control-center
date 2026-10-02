@@ -48,6 +48,8 @@ struct OrbitButtonStyle: ButtonStyle {
             .overlay(RoundedRectangle(cornerRadius: compact ? 7 : 8).strokeBorder(kind == .secondary ? Theme.border : .clear, lineWidth: 1))
             .contentShape(Rectangle())
             .opacity(configuration.isPressed ? 0.85 : 1)
+            .scaleEffect(configuration.isPressed && !Motion.reduced ? 0.97 : 1)
+            .animation(Motion.pick(Motion.snappy), value: configuration.isPressed)
     }
 
     private var foreground: Color {
@@ -99,7 +101,10 @@ struct PlainButtonStyle2: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .contentShape(Rectangle())
-            .opacity(configuration.isPressed ? 0.7 : 1)
+            .opacity(configuration.isPressed ? 0.75 : 1)
+            // Rows and cards use this style too, so the press is barely a nudge.
+            .scaleEffect(configuration.isPressed && !Motion.reduced ? 0.99 : 1)
+            .animation(Motion.pick(Motion.snappy), value: configuration.isPressed)
     }
 }
 
@@ -190,16 +195,19 @@ struct ProjectLabel: View {
 struct HealthBar: View {
     var score: Int
     var height: CGFloat = 4
+    @State private var appeared = false
 
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 Capsule().fill(Theme.border)
                 Capsule().fill(Theme.healthColor(score))
-                    .frame(width: geo.size.width * CGFloat(max(0, min(100, score))) / 100)
+                    .frame(width: appeared ? geo.size.width * CGFloat(max(0, min(100, score))) / 100 : 0)
             }
         }
         .frame(height: height)
+        .animation(Motion.pick(Motion.grow), value: score)
+        .onAppear { withMotion(Motion.grow) { appeared = true } }
     }
 }
 
@@ -207,15 +215,18 @@ struct ProgressLine: View {
     var fraction: Double
     var color: Color = Theme.accent
     var height: CGFloat = 4
+    @State private var appeared = false
 
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 Capsule().fill(Theme.border)
-                Capsule().fill(color).frame(width: geo.size.width * CGFloat(max(0, min(1, fraction))))
+                Capsule().fill(color).frame(width: appeared ? geo.size.width * CGFloat(max(0, min(1, fraction))) : 0)
             }
         }
         .frame(height: height)
+        .animation(Motion.pick(Motion.grow), value: fraction)
+        .onAppear { withMotion(Motion.grow) { appeared = true } }
     }
 }
 
@@ -237,6 +248,7 @@ struct SegmentBar: View {
             }
         }
         .frame(height: height)
+        .animation(Motion.pick(Motion.grow), value: segments.map(\.0))
     }
 }
 
@@ -244,7 +256,7 @@ struct OrbitToggle: View {
     @Binding var isOn: Bool
 
     var body: some View {
-        Button { withAnimation(.easeOut(duration: 0.15)) { isOn.toggle() } } label: {
+        Button { withMotion { isOn.toggle() } } label: {
             ZStack(alignment: isOn ? .trailing : .leading) {
                 Capsule().fill(isOn ? Theme.accent : Theme.border)
                 Circle().fill(isOn ? Theme.bg : Theme.text3).padding(2)
@@ -258,18 +270,24 @@ struct OrbitToggle: View {
 struct SegmentedTabs<T: Hashable>: View {
     var items: [(T, String)]
     @Binding var selection: T
+    @Namespace private var ns
 
     var body: some View {
         HStack(spacing: 2) {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 let selected = item.0 == selection
-                Button { selection = item.0 } label: {
+                Button { withMotion { selection = item.0 } } label: {
                     Text(item.1)
                         .font(OrbitFont.ui(12.5, selected ? .medium : .regular))
                         .foregroundStyle(selected ? Theme.text : Theme.text2)
                         .padding(.vertical, 6)
                         .padding(.horizontal, 12)
-                        .background(selected ? Theme.surface2 : .clear, in: RoundedRectangle(cornerRadius: 6))
+                        .background {
+                            if selected {
+                                RoundedRectangle(cornerRadius: 6).fill(Theme.surface2)
+                                    .matchedGeometryEffect(id: "segment", in: ns)
+                            }
+                        }
                 }
                 .buttonStyle(PlainButtonStyle2())
             }

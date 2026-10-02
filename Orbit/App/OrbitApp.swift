@@ -103,23 +103,41 @@ struct MainView: View {
             ZStack(alignment: .bottom) {
                 content
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .id(app.screen)
+                    .transition(screenTransition)
                 if let toast = app.toast {
                     ToastView(text: toast)
                         .padding(.bottom, 24)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .transition(Motion.transition(.move(edge: .bottom).combined(with: Motion.pop)))
                         .task(id: toast) {
                             try? await Task.sleep(for: .seconds(4))
-                            withAnimation { app.toast = nil }
+                            withMotion { app.toast = nil }
                         }
                 }
             }
-            .animation(.easeOut(duration: 0.2), value: app.toast)
+            .clipped()
+            .animation(Motion.pick(Motion.page), value: app.screen)
+            .animation(Motion.pick(Motion.snappy), value: app.toast)
         }
         .background(Theme.bg)
         .ignoresSafeArea()
         .sheet(item: $app.sheet) { sheet in
             SheetHost(sheet: sheet).environment(app)
         }
+    }
+
+    /// Into a project slides in from the right, back out from the left, sidebar hops rise softly.
+    /// The outgoing screen just fades so the two never fight for attention.
+    private var screenTransition: AnyTransition {
+        let insertion: AnyTransition
+        switch app.navDirection {
+        case .deeper: insertion = .opacity.combined(with: .offset(x: 24))
+        case .back: insertion = .opacity.combined(with: .offset(x: -24))
+        case .lateral: insertion = Motion.rise
+        }
+        // The old screen is gone in 80 ms and the new one starts right after, so they barely overlap.
+        return Motion.transition(.asymmetric(insertion: insertion.animation(Motion.page.delay(0.06)),
+                                             removal: .opacity.animation(.easeOut(duration: 0.08))))
     }
 
     @ViewBuilder private var content: some View {

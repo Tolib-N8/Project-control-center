@@ -10,13 +10,15 @@ struct ProjectDetailView: View {
             Page {
                 header(snap)
                 StatTilesRow(snap: snap, score: app.health[projectId] ?? 0, history: app.healthHistory[projectId] ?? [])
+                    .appearStagger(0)
                 HStack(alignment: .top, spacing: 28) {
-                    sessionsPanel(snap)
+                    sessionsPanel(snap).appearStagger(1)
                     VStack(spacing: 28) {
                         GitPanel(snap: snap)
                         WorkDaysPanel(snap: snap)
                     }
                     .frame(width: 380)
+                    .appearStagger(2)
                 }
             }
         } else {
@@ -84,6 +86,8 @@ struct ProjectDetailView: View {
                             if app.aiBusy.contains("project:" + snap.config.id) { ProgressView().controlSize(.mini) }
                         }
                         Text(digest).uiFont(13.5).lineSpacing(5).fixedSize(horizontal: false, vertical: true)
+                            .contentTransition(.opacity)
+                            .animation(Motion.pick(Motion.content), value: digest)
                     }
                 }
                 .padding(.horizontal, 20).padding(.vertical, 20)
@@ -96,10 +100,12 @@ struct ProjectDetailView: View {
                 EmptyHint(symbol: "cpu", title: "Сессий нет", text: "Запустите Claude Code или Codex в папке проекта — Orbit подхватит логи.")
                     .padding(.vertical, 40)
             }
-            ForEach(list.prefix(25)) { s in
-                Button { app.showSession(s) } label: { SessionRow(session: s) }
+            ForEach(Array(list.prefix(25).enumerated()), id: \.element.id) { i, s in
+                Button { app.showSession(s) } label: { SessionRow(session: s).hoverHighlight() }
                     .buttonStyle(PlainButtonStyle2())
                     .hairline()
+                    .appearStagger(i + 2)
+                    .transition(Motion.transition(.opacity))
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
@@ -219,7 +225,7 @@ struct StatTilesRow: View {
     private func statContent(_ title: String, _ value: String, _ caption: String, color: Color = Theme.text) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).uiFont(12.5, color: Theme.text2)
-            Text(value).font(OrbitFont.ui(28, .semibold)).foregroundStyle(color)
+            Text(value).font(OrbitFont.ui(28, .semibold)).foregroundStyle(color).numericTransition(value)
             Text(caption).uiFont(12, color: Theme.text3).lineLimit(1)
         }
     }
@@ -227,6 +233,7 @@ struct StatTilesRow: View {
 
 struct Sparkline: View {
     var values: [Int]
+    @State private var appeared = false
 
     var body: some View {
         GeometryReader { geo in
@@ -237,10 +244,15 @@ struct Sparkline: View {
                     let h = max(4, geo.size.height * (Double(v) - minV) / max(maxV - minV, 1))
                     RoundedRectangle(cornerRadius: 1.5)
                         .fill(Theme.healthColor(v).opacity(i >= values.count - 4 ? 1 : 0.3))
-                        .frame(height: h)
+                        .frame(height: appeared ? h : 2)
+                        .animation(Motion.pick(Motion.grow).delay(Motion.reduced ? 0 : Double(i) * 0.02), value: appeared)
                 }
             }
+            // Pin the baseline to the bottom so bars grow upwards instead of dropping from the top.
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .bottom)
         }
+        .animation(Motion.pick(Motion.grow), value: values)
+        .onAppear { appeared = true }
     }
 }
 
@@ -286,14 +298,9 @@ struct GitPanel: View {
                     if let age = r.changesAgeHours { Text(Duration.age(hours: age)).uiFont(12, color: Theme.text3) }
                 }
                 ForEach(r.changes.prefix(8)) { c in
-                    HStack(spacing: 10) {
-                        Text(c.status).monoFont(12.5, .medium, color: c.status == "?" ? Theme.text2 : c.status == "A" ? Theme.green : c.status == "D" ? Theme.red : Theme.yellow)
-                            .frame(width: 12)
-                        Text(c.path).monoFont(12.5).lineLimit(1).truncationMode(.head)
-                        Spacer()
-                        Text(lineText(c)).monoFont(11.5, color: Theme.text3)
-                    }
+                    changeRow(c).transition(Motion.transition(.opacity.combined(with: .offset(x: -8))))
                 }
+                .animation(Motion.pick(Motion.snappy), value: r.changes.map(\.path))
                 if r.changes.count > 8 { Text("и ещё \(r.changes.count - 8)…").uiFont(12, color: Theme.text3) }
                 if !r.changes.isEmpty {
                     HStack(spacing: 10) {
@@ -336,6 +343,16 @@ struct GitPanel: View {
         .cardStyle()
     }
 
+    private func changeRow(_ c: FileChange) -> some View {
+        HStack(spacing: 10) {
+            Text(c.status).monoFont(12.5, .medium, color: c.status == "?" ? Theme.text2 : c.status == "A" ? Theme.green : c.status == "D" ? Theme.red : Theme.yellow)
+                .frame(width: 12)
+            Text(c.path).monoFont(12.5).lineLimit(1).truncationMode(.head)
+            Spacer()
+            Text(lineText(c)).monoFont(11.5, color: Theme.text3)
+        }
+    }
+
     private func lineText(_ c: FileChange) -> String {
         if c.added == 0 && c.removed == 0 { return "" }
         if c.removed == 0 { return "+\(c.added)" }
@@ -362,8 +379,10 @@ struct WorkDaysPanel: View {
                     let on = days.contains(d)
                     let color = Theme.projectColor(snap.config.colorIndex)
                     Button {
-                        app.updateProject(snap.config.id) { p in
-                            if on { p.workDays.removeAll { $0 == d } } else { p.workDays.append(d) }
+                        withMotion {
+                            app.updateProject(snap.config.id) { p in
+                                if on { p.workDays.removeAll { $0 == d } } else { p.workDays.append(d) }
+                            }
                         }
                     } label: {
                         Text(Week.shortNames[d])

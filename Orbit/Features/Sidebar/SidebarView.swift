@@ -3,15 +3,18 @@ import UniformTypeIdentifiers
 
 struct SidebarView: View {
     @Environment(AppState.self) private var app
+    /// The selection pill slides between sections and projects.
+    @Namespace private var selection
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            HStack(spacing: 10) {
-                LogoMark()
-                Text("Orbit").uiFont(16, .semibold)
+            // Sits on the same line as the window buttons (centred at y = 16), just to their right.
+            HStack(spacing: 8) {
+                LogoMark(size: 20)
+                Text("Orbit").uiFont(14.5, .semibold)
             }
-            .padding(.horizontal, 6)
-            .padding(.top, 30) // room for the window controls
+            .frame(height: 32)
+            .padding(.leading, 84 - 14)
 
             VStack(spacing: 2) {
                 navItem(.week, "Неделя", "calendar")
@@ -36,7 +39,9 @@ struct SidebarView: View {
 
                 ScrollView {
                     VStack(spacing: 2) {
-                        ForEach(app.config.activeProjects) { p in projectItem(p) }
+                        ForEach(app.config.activeProjects) { p in
+                            projectItem(p).transition(Motion.transition(.opacity.combined(with: .offset(x: -8))))
+                        }
                     }
                 }
                 .scrollIndicators(.never)
@@ -51,6 +56,16 @@ struct SidebarView: View {
         .frame(maxHeight: .infinity, alignment: .top)
         .background(Theme.surface)
         .overlay(alignment: .trailing) { Rectangle().fill(Theme.border).frame(width: 1) }
+        .animation(Motion.pick(Motion.snappy), value: app.screen)
+        .animation(Motion.pick(Motion.snappy), value: app.config.activeProjects.map(\.id))
+    }
+
+    @ViewBuilder
+    private func pill(_ selected: Bool) -> some View {
+        if selected {
+            RoundedRectangle(cornerRadius: 7).fill(Theme.surface2)
+                .matchedGeometryEffect(id: "selection", in: selection)
+        }
     }
 
     private func isSelected(_ screen: Screen) -> Bool {
@@ -71,15 +86,19 @@ struct SidebarView: View {
                 Spacer(minLength: 0)
                 if badge > 0 {
                     Text("\(badge)").uiFont(11, .semibold, color: Theme.red)
+                        .numericTransition(badge)
                         .padding(.vertical, 1).padding(.horizontal, 6)
                         .background(Theme.red.opacity(0.14), in: Capsule())
+                        .transition(Motion.transition(Motion.pop))
                 }
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 10)
-            .background(selected ? Theme.surface2 : .clear, in: RoundedRectangle(cornerRadius: 7))
+            .background { pill(selected) }
+            .hoverHighlight(.row, radius: 7)
         }
         .buttonStyle(PlainButtonStyle2())
+        .animation(Motion.pick(Motion.snappy), value: badge)
     }
 
     private func projectItem(_ p: ProjectConfig) -> some View {
@@ -90,11 +109,15 @@ struct SidebarView: View {
                 ProjectSquare(colorIndex: p.colorIndex)
                 Text(p.name).monoFont(12.5).lineLimit(1)
                 Spacer(minLength: 0)
-                if let score { Dot(color: Theme.healthColor(score)) }
+                if let score {
+                    Dot(color: Theme.healthColor(score))
+                        .animation(Motion.pick(Motion.content), value: score)
+                }
             }
             .padding(.vertical, 7)
             .padding(.horizontal, 10)
-            .background(selected ? Theme.surface2 : .clear, in: RoundedRectangle(cornerRadius: 7))
+            .background { pill(selected) }
+            .hoverHighlight(.row, radius: 7)
         }
         .buttonStyle(PlainButtonStyle2())
         .draggable(PlanDragItem(projectId: p.id))
@@ -114,22 +137,28 @@ struct SidebarView: View {
                         Image(systemName: "exclamationmark.triangle").font(.system(size: 10)).foregroundStyle(Theme.yellow)
                         Text("Ошибка ИИ-анализа").uiFont(12, .medium, color: Theme.yellow)
                     } else {
-                        ProgressView().controlSize(.mini).frame(width: 6, height: 6)
-                        Text("ИИ-анализ · \(app.aiBusy.count)").uiFont(12, .medium)
+                        Image(systemName: "sparkles").font(.system(size: 10)).foregroundStyle(Theme.accent)
+                            .symbolEffect(.pulse, options: .repeating, isActive: !Motion.reduced)
+                        Text("ИИ-анализ · \(app.aiBusy.count)").uiFont(12, .medium).numericTransition(app.aiBusy.count)
                     }
                 }
                 .help(app.aiError ?? "")
                 .padding(.bottom, 4)
+                .transition(Motion.transition(Motion.rise))
             }
             HStack(spacing: 8) {
                 if app.isSyncing {
-                    ProgressView().controlSize(.mini).frame(width: 6, height: 6)
-                    Text("Синхронизация…").uiFont(12, .medium)
+                    Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 10, weight: .semibold)).foregroundStyle(Theme.accent)
+                        .symbolEffect(.rotate, options: .repeating, isActive: !Motion.reduced)
+                        .transition(.opacity)
                 } else {
-                    Dot(color: app.lastSync == nil ? Theme.text3 : Theme.green)
-                    Text(app.lastSync == nil ? "Ожидание" : "Синхронизировано").uiFont(12, .medium)
+                    Dot(color: app.lastSync == nil ? Theme.text3 : Theme.green).transition(.opacity)
                 }
+                Text(app.isSyncing ? "Синхронизация…" : app.lastSync == nil ? "Ожидание" : "Синхронизировано")
+                    .uiFont(12, .medium)
+                    .contentTransition(.opacity)
             }
+            .animation(Motion.pick(Motion.content), value: app.isSyncing)
             HStack {
                 Text("\(Plural.repos(app.config.activeProjects.count)) · \(app.lastSync.map { DateFormat.ago($0, now: app.now) } ?? "—")")
                     .uiFont(11.5, color: Theme.text3)
@@ -147,6 +176,7 @@ struct SidebarView: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.surface2, in: RoundedRectangle(cornerRadius: 8))
+        .animation(Motion.pick(Motion.snappy), value: app.aiBusy.isEmpty && app.aiError == nil)
         .onTapGesture { Task { await app.refresh() } }
         .help("Обновить сейчас")
     }

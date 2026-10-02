@@ -3,6 +3,7 @@ import SwiftUI
 struct OnboardingView: View {
     @Environment(AppState.self) private var app
     @State private var step = 1
+    @State private var forward = true
     @State private var roots: [String] = []
     @State private var found: [FoundRepo] = []
     @State private var selected: Set<String> = []
@@ -20,6 +21,11 @@ struct OnboardingView: View {
                     default: rhythmStep
                     }
                 }
+                // "Далее" slides the next step in from the right, "Назад" from the left.
+                .id(step)
+                .transition(Motion.transition(.asymmetric(
+                    insertion: AnyTransition.opacity.combined(with: .offset(x: forward ? 40 : -40)).animation(Motion.page.delay(0.06)),
+                    removal: .opacity.animation(.easeOut(duration: 0.08)))))
                 .frame(width: 760, alignment: .leading)
                 .padding(.top, 120)
                 .frame(maxWidth: .infinity)
@@ -34,6 +40,7 @@ struct OnboardingView: View {
             .padding(.bottom, 28)
         }
         .background(Theme.bg)
+        .animation(Motion.pick(Motion.page), value: step)
         .onAppear {
             roots = app.config.scanRoots
             rhythm = app.config.rhythm
@@ -74,6 +81,11 @@ struct OnboardingView: View {
 
     private var line: some View { Rectangle().fill(Theme.border).frame(width: 40, height: 1) }
 
+    private func go(_ n: Int) {
+        forward = n > step
+        withMotion(Motion.page) { step = n }
+    }
+
     private func stepLabel(_ n: Int, _ title: String) -> some View {
         let done = n < step, current = n == step
         return HStack(spacing: 10) {
@@ -81,11 +93,15 @@ struct OnboardingView: View {
                 Circle().fill(current ? Theme.accent : done ? Theme.accent.opacity(0.15) : Theme.surface2)
                 if done {
                     Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)).foregroundStyle(Theme.accent)
+                        .transition(Motion.transition(.scale(scale: 0.5).combined(with: .opacity)))
+                        .symbolEffect(.bounce, value: done)
                 } else {
                     Text("\(n)").uiFont(12, .semibold, color: current ? Theme.bg : Theme.text3)
+                        .transition(.opacity)
                 }
             }
             .frame(width: 22, height: 22)
+            .animation(Motion.pick(Motion.snappy), value: step)
             Text(title).uiFont(13, current ? .medium : .regular, color: current ? Theme.text : Theme.text2)
         }
     }
@@ -130,14 +146,14 @@ struct OnboardingView: View {
                     Text(scanning ? "Ищу репозитории…" : "Найдено \(Plural.repos(found.count))").uiFont(13, .medium)
                     Spacer()
                     Button(selected.count == found.count ? "Снять все" : "Выбрать все") {
-                        selected = selected.count == found.count ? [] : Set(found.map(\.path))
+                        withMotion { selected = selected.count == found.count ? [] : Set(found.map(\.path)) }
                     }
                     .buttonStyle(PlainButtonStyle2()).font(OrbitFont.ui(13)).foregroundStyle(Theme.text2)
                 }
                 .padding(.horizontal, 18).padding(.vertical, 14)
                 .hairline()
                 ForEach(Array(found.enumerated()), id: \.element.id) { i, repo in
-                    repoRow(repo, colorIndex: i)
+                    repoRow(repo, colorIndex: i).appearStagger(i)
                     if i < found.count - 1 { Rectangle().fill(Theme.border).frame(height: 1) }
                 }
                 if found.isEmpty && !scanning {
@@ -150,7 +166,7 @@ struct OnboardingView: View {
                 let sessions = found.filter { selected.contains($0.path) }.reduce(0) { $0 + $1.agents.values.reduce(0, +) }
                 Text("Выбрано \(Plural.projects(selected.count)) · \(Plural.sessions(sessions)) агентов для анализа").uiFont(13, color: Theme.text2)
                 Spacer()
-                OrbitButton("Далее: агенты", icon: "arrow.right", kind: .primary) { step = 2 }
+                OrbitButton("Далее: агенты", icon: "arrow.right", kind: .primary) { go(2) }
                     .disabled(selected.isEmpty)
                     .opacity(selected.isEmpty ? 0.5 : 1)
             }
@@ -161,7 +177,7 @@ struct OnboardingView: View {
     private func repoRow(_ repo: FoundRepo, colorIndex: Int) -> some View {
         let on = selected.contains(repo.path)
         return Button {
-            if on { selected.remove(repo.path) } else { selected.insert(repo.path) }
+            withMotion { if on { selected.remove(repo.path) } else { selected.insert(repo.path) } }
         } label: {
             HStack(spacing: 14) {
                 ZStack {
@@ -230,10 +246,10 @@ struct OnboardingView: View {
             }
 
             HStack {
-                OrbitButton("Назад", icon: "arrow.left") { step = 1 }
+                OrbitButton("Назад", icon: "arrow.left") { go(1) }
                 Spacer()
                 Text("\(Plural.sessions(total)) из \(sources) \(Plural.ru(sources, "источника", "источников", "источников"))").uiFont(13, color: Theme.text3)
-                OrbitButton("Далее: ритм недели", icon: "arrow.right", kind: .primary) { step = 3 }
+                OrbitButton("Далее: ритм недели", icon: "arrow.right", kind: .primary) { go(3) }
             }
             .padding(.top, 28)
         }
@@ -321,7 +337,7 @@ struct OnboardingView: View {
             .cardStyle()
 
             HStack {
-                OrbitButton("Назад", icon: "arrow.left") { step = 2 }
+                OrbitButton("Назад", icon: "arrow.left") { go(2) }
                 Spacer()
                 OrbitButton("Готово — открыть Orbit", icon: "checkmark", kind: .primary) { finish(skip: false) }
             }
@@ -332,7 +348,7 @@ struct OnboardingView: View {
     private func dayTile(_ d: Int) -> some View {
         let hours = rhythm.hours[d]
         let on = hours > 0
-        return Button { rhythm.hours[d] = on ? 0 : 7 } label: {
+        return Button { withMotion { rhythm.hours[d] = on ? 0 : 7 } } label: {
             VStack(spacing: 6) {
                 Text(Week.shortNames[d]).uiFont(14, .semibold, color: on ? Theme.text : Theme.text3)
                 Text(on ? "\(hours) ч" : "выходной").font(on ? OrbitFont.mono(15, .semibold) : OrbitFont.ui(12)).foregroundStyle(on ? Theme.accent : Theme.text3)

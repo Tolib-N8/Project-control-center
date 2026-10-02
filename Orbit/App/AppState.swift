@@ -5,7 +5,16 @@ import Observation
 enum Screen: Hashable {
     case week, projects, sessions, git, signals
     case project(String)
+
+    /// Project pages sit one level below the sidebar sections.
+    var depth: Int {
+        if case .project = self { return 1 }
+        return 0
+    }
 }
+
+/// Which way the last navigation went; drives the screen transition.
+enum NavDirection { case deeper, back, lateral }
 
 struct ProjectProgress: Hashable {
     enum Phase: Hashable { case queued, running, done }
@@ -48,7 +57,13 @@ final class AppState {
     private(set) var health: [String: Int] = [:]
     private(set) var healthHistory: [String: [Int]] = [:]
 
-    var screen: Screen = .week
+    var screen: Screen = .week {
+        didSet {
+            guard screen != oldValue else { return }
+            navDirection = screen.depth > oldValue.depth ? .deeper : screen.depth < oldValue.depth ? .back : .lateral
+        }
+    }
+    var navDirection: NavDirection = .lateral
     var sheet: ActiveSheet?
     var toast: String?
     var sessionFilterProject: String?

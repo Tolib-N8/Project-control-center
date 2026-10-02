@@ -37,13 +37,14 @@ struct ProjectsView: View {
                                 if let snap = cells[i] { ProjectCard(snap: snap) } else { ConnectCard(action: addProject) }
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                            .appearStagger(i)
                         }
                         ForEach(0..<(3 - min(3, cells.count - start)), id: \.self) { _ in Color.clear.gridCellUnsizedAxes(.vertical) }
                     }
                 }
             }
 
-            MonthTimeCard()
+            MonthTimeCard().appearStagger(min(cells.count, 11))
 
             ForEach(archived) { p in
                 HStack(spacing: 14) {
@@ -93,6 +94,7 @@ struct ProjectCard: View {
                         Text(snap.config.name).monoFont(16, .semibold).lineLimit(1)
                         Spacer()
                         Text("\(score)").font(OrbitFont.ui(26, .semibold)).foregroundStyle(Theme.healthColor(score))
+                            .numericTransition(score)
                     }
                     Text(([snap.config.displayPath] + r.stack).joined(separator: " · ")).uiFont(12.5, color: Theme.text3)
                         .lineLimit(1).truncationMode(.head)
@@ -101,6 +103,8 @@ struct ProjectCard: View {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: app.projectAI(pid) != nil ? "sparkles" : "function").font(.system(size: 13)).foregroundStyle(Theme.accent)
                     Text(app.cardSummary(snap)).uiFont(13).lineSpacing(4).lineLimit(3)
+                        .contentTransition(.opacity)
+                        .animation(Motion.pick(Motion.content), value: app.cardSummary(snap))
                         .frame(maxWidth: .infinity, minHeight: 58, maxHeight: 58, alignment: .topLeading)
                 }
                 Rectangle().fill(Theme.border).frame(height: 1)
@@ -122,6 +126,7 @@ struct ProjectCard: View {
             .padding(20)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .cardStyle()
+            .hoverHighlight(.card, radius: 12)
         }
         .buttonStyle(PlainButtonStyle2())
         .contextMenu {
@@ -168,6 +173,7 @@ struct ConnectCard: View {
 /// "Время по проектам · <месяц>": actual agent hours vs planned.
 struct MonthTimeCard: View {
     @Environment(AppState.self) private var app
+    @State private var barShown = false
 
     var body: some View {
         let cal = Week.calendar
@@ -194,8 +200,13 @@ struct MonthTimeCard: View {
                                 .frame(width: max(4, (geo.size.width - 4 * CGFloat(rows.count)) * hours / max(actual, 0.01)))
                         }
                     }
+                    // The stacked bar draws in from the left.
+                    .mask(alignment: .leading) {
+                        Rectangle().frame(width: barShown ? geo.size.width : 0)
+                    }
                 }
                 .frame(height: 10)
+                .onAppear { withMotion(Motion.grow) { barShown = true } }
                 HStack(alignment: .top) {
                     ForEach(rows.prefix(6), id: \.0.config.id) { snap, hours, plan in
                         VStack(alignment: .leading, spacing: 6) {

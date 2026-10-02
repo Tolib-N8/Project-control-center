@@ -5,6 +5,7 @@ struct SignalsView: View {
     @State private var tab: SignalState = .active
 
     var body: some View {
+        let list = app.signals.filter { $0.state == tab }
         let resolvedMonth = app.signals.filter { $0.state == .resolved && ($0.resolvedAt ?? .distantPast) > app.now.addingTimeInterval(-30 * 86400) }
         VStack(alignment: .leading, spacing: 28) {
             PageHeader(eyebrow: "Проверка каждые 15 минут · \(resolvedMonth.count) решено за месяц", title: "Сигналы") {
@@ -17,20 +18,30 @@ struct SignalsView: View {
             HStack(alignment: .top, spacing: 28) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
-                        let list = app.signals.filter { $0.state == tab }
                         if list.isEmpty {
                             emptyState.frame(minHeight: 620)
+                                .transition(Motion.transition(Motion.pop))
                         } else if tab == .resolved {
-                            ForEach(list) { s in resolvedRow(s) }
+                            ForEach(Array(list.enumerated()), id: \.element.id) { i, s in resolvedRow(s).appearStagger(i) }
                         } else {
-                            ForEach(list) { s in SignalCard(signal: s) }
+                            // A snoozed or resolved card slides out to the left and the rest close the gap.
+                            ForEach(Array(list.enumerated()), id: \.element.id) { i, s in
+                                SignalCard(signal: s)
+                                    .appearStagger(i)
+                                    .transition(Motion.transition(.asymmetric(insertion: Motion.rise,
+                                                                              removal: .opacity.combined(with: .move(edge: .leading)))))
+                            }
                         }
                         if tab == .active && !list.isEmpty && !resolvedMonth.isEmpty {
                             Eyebrow(text: "Недавно решено").padding(.top, 10)
                             ForEach(resolvedMonth.prefix(4)) { s in resolvedRow(s) }
                         }
                     }
+                    .id(tab)
+                    .transition(Motion.transition(.opacity))
+                    .animation(Motion.pick(Motion.page), value: list.map(\.id))
                 }
+                .animation(Motion.pick(Motion.content), value: tab)
                 .frame(maxWidth: .infinity)
                 RulesPanel().frame(width: 360)
             }
@@ -102,15 +113,15 @@ struct SignalCard: View {
                         Text("· обнаружено \(DateFormat.relativeDay(s.detectedAt))").uiFont(12.5, color: Theme.text3)
                         Spacer()
                         if s.state == .snoozed {
-                            Button { app.unsnooze(s.id) } label: {
+                            Button { withMotion(Motion.page) { app.unsnooze(s.id) } } label: {
                                 Label("Вернуть", systemImage: "bell").uiFont(12.5, color: Theme.text2)
                             }
                             .buttonStyle(PlainButtonStyle2())
                         } else {
                             Menu {
-                                Button("На день") { app.snooze(s.id, days: 1) }
-                                Button("На 3 дня") { app.snooze(s.id, days: 3) }
-                                Button("На неделю") { app.snooze(s.id, days: 7) }
+                                Button("На день") { withMotion(Motion.page) { app.snooze(s.id, days: 1) } }
+                                Button("На 3 дня") { withMotion(Motion.page) { app.snooze(s.id, days: 3) } }
+                                Button("На неделю") { withMotion(Motion.page) { app.snooze(s.id, days: 7) } }
                             } label: {
                                 Label("Отложить", systemImage: "bell.slash").uiFont(12.5, color: Theme.text2)
                             }
@@ -193,10 +204,11 @@ struct RulesPanel: View {
                         Text(rule.kind.subtitle(rule.threshold)).uiFont(12, color: Theme.text3)
                     }
                     Spacer()
-                    OrbitToggle(isOn: Binding(get: { rule.enabled }, set: { app.setRule(rule.kind, enabled: $0) }))
+                    OrbitToggle(isOn: Binding(get: { rule.enabled }, set: { on in withMotion { app.setRule(rule.kind, enabled: on) } }))
                 }
                 .padding(.vertical, 14)
                 .hairline()
+                .animation(Motion.pick(Motion.snappy), value: rule.enabled)
             }
 
             Spacer(minLength: 24)
