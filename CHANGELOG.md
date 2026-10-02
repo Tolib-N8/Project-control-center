@@ -61,6 +61,7 @@
 - Выводы и план строятся эвристиками; Claude API и Ollama — в следующих версиях.
 - Нет интеграции с GitHub (PR, CI), Telegram и почтой; Cursor только определяется.
 
+[0.5.0]: https://github.com/Tolib-N8/Project-control-center/releases/tag/v0.5.0
 [0.4.0]: https://github.com/Tolib-N8/Project-control-center/releases/tag/v0.4.0
 [0.3.0]: https://github.com/Tolib-N8/Project-control-center/releases/tag/v0.3.0
 [0.2.0]: https://github.com/Tolib-N8/Project-control-center/releases/tag/v0.2.0

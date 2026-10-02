@@ -8,7 +8,7 @@
 
 План недели по проектам · здоровье проектов · сессии Claude Code и Codex · состояние git — в одном нативном окне macOS.
 
-![Version](https://img.shields.io/badge/version-0.4.0-C8F169?style=flat-square&labelColor=15171A)
+![Version](https://img.shields.io/badge/version-0.5.0-C8F169?style=flat-square&labelColor=15171A)
 ![Platform](https://img.shields.io/badge/macOS-15%2B-ECEDEF?style=flat-square&logo=apple&logoColor=white&labelColor=15171A)
 ![Swift](https://img.shields.io/badge/SwiftUI-Swift%205-F59E5B?style=flat-square&logo=swift&logoColor=white&labelColor=15171A)
 ![Local first](https://img.shields.io/badge/данные-локально-5AD48A?style=flat-square&labelColor=15171A)
