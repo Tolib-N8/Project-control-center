@@ -407,3 +407,22 @@ final class UpdaterTests: XCTestCase {
         XCTAssertThrowsError(try Updater.verifyChecksum(of: file, expected: tampered))
     }
 }
+
+final class CLILocatorTests: XCTestCase {
+    func testLooksInUserBinFolders() {
+        XCTAssertTrue(CLILocator.candidateDirs.contains(NSHomeDirectory() + "/.local/bin"))
+        XCTAssertTrue(CLILocator.candidateDirs.contains("/opt/homebrew/bin"))
+    }
+
+    func testUnknownCLIIsNil() {
+        XCTAssertNil(CLILocator.path(for: "orbit-no-such-cli-\(UUID().uuidString.prefix(6))"))
+    }
+
+    func testSearchPATHStartsWithTheCLIFolderWithoutDuplicates() {
+        let path = CLILocator.searchPATH(for: "/opt/homebrew/bin/claude")
+        let parts = path.split(separator: ":").map(String.init)
+        XCTAssertEqual(parts.first, "/opt/homebrew/bin")
+        XCTAssertEqual(parts.count, Set(parts).count)
+        XCTAssertTrue(parts.contains("/usr/bin"))
+    }
+}

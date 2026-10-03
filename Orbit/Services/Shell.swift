@@ -71,19 +71,6 @@ enum Shell {
         )
     }
 
-    /// Runs a command through a login shell so PATH matches the user's terminal
-    /// (GUI apps do not see ~/.local/bin, Homebrew, nvm…).
-    static func login(_ command: String, _ args: [String], cwd: String? = nil, input: String? = nil, timeout: TimeInterval = 120) -> ShellResult {
-        run("/bin/zsh", ["-lc", "exec \"$0\" \"$@\"", command] + args, cwd: cwd, input: input, timeout: timeout)
-    }
-
-    /// Absolute path of a CLI found through the login shell, or nil.
-    static func which(_ command: String) -> String? {
-        let r = run("/bin/zsh", ["-lc", "command -v \(command)"], timeout: 10)
-        let path = r.stdout.split(separator: "\n").last.map { String($0).trimmingCharacters(in: .whitespaces) } ?? ""
-        return r.ok && path.hasPrefix("/") ? path : nil
-    }
-
     @discardableResult
     static func git(_ repo: String, _ args: [String], timeout: TimeInterval = 30) -> ShellResult {
         run("/usr/bin/git", ["-C", repo] + args, timeout: timeout)
@@ -109,5 +96,79 @@ enum Shell {
 
     static func reveal(_ path: String) {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+    }
+}
+
+/// Finds agent CLIs (claude, codex) no matter how Orbit was started. Launched from the Dock or
+/// relaunched by the updater, Orbit gets launchd's minimal PATH, and a non-interactive shell does
+/// not read ~/.zshrc — where installers usually add ~/.local/bin.
+enum CLILocator {
+    private static let lock = NSLock()
+    private static var found: [String: String] = [:]
+    private static var cachedShellPATH: String?
+
+    /// Where agent CLIs usually live, checked before asking the shell.
+    static var candidateDirs: [String] {
+        let home = NSHomeDirectory()
+        var dirs = [
+            "\(home)/.local/bin", "\(home)/.claude/local", "/opt/homebrew/bin", "/usr/local/bin",
+            "\(home)/.npm-global/bin", "\(home)/.bun/bin", "\(home)/.volta/bin", "\(home)/.cargo/bin",
+        ]
+        let nvm = "\(home)/.nvm/versions/node"
+        if let versions = try? FileManager.default.contentsOfDirectory(atPath: nvm) {
+            dirs += versions.sorted().reversed().map { "\(nvm)/\($0)/bin" }
+        }
+        return dirs
+    }
+
+    /// Absolute path of a CLI, or nil. Successful lookups are cached for the session.
+    static func path(for name: String) -> String? {
+        lock.lock()
+        if let hit = found[name] { lock.unlock(); return hit }
+        lock.unlock()
+        let fm = FileManager.default
+        var result = candidateDirs.map { "\($0)/\(name)" }.first { fm.isExecutableFile(atPath: $0) }
+        if result == nil {
+            // Ask the user's own shell the way their terminal would (interactive + login).
+            let r = Shell.run(userShell, ["-ilc", "command -v \(name)"], timeout: 10)
+            result = r.stdout.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+                .last { $0.hasPrefix("/") && fm.isExecutableFile(atPath: $0) }
+        }
+        if let result {
+            lock.lock(); found[name] = result; lock.unlock()
+        }
+        return result
+    }
+
+    /// PATH for running a CLI: its own folder, the user's interactive shell PATH and the defaults,
+    /// so CLIs that call node, git and friends work the same as in the terminal.
+    static func searchPATH(for executable: String) -> String {
+        var parts = [(executable as NSString).deletingLastPathComponent]
+        parts += shellPATH.split(separator: ":").map(String.init)
+        parts += candidateDirs
+        parts += ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]
+        var seen = Set<String>()
+        return parts.filter { !$0.isEmpty && seen.insert($0).inserted }.joined(separator: ":")
+    }
+
+    private static var shellPATH: String {
+        lock.lock()
+        if let cached = cachedShellPATH { lock.unlock(); return cached }
+        lock.unlock()
+        let r = Shell.run(userShell, ["-ilc", "printf '%s' \"$PATH\""], timeout: 10)
+        let value = r.stdout.split(separator: "\n").last.map(String.init) ?? ""
+        lock.lock(); cachedShellPATH = value; lock.unlock()
+        return value
+    }
+
+    private static var userShell: String {
+        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+        return FileManager.default.isExecutableFile(atPath: shell) ? shell : "/bin/zsh"
+    }
+
+    /// Runs a CLI by name with a PATH that matches the user's terminal.
+    static func run(_ name: String, _ args: [String], cwd: String? = nil, input: String? = nil, timeout: TimeInterval) -> ShellResult? {
+        guard let exe = path(for: name) else { return nil }
+        return Shell.run(exe, args, cwd: cwd, env: ["PATH": searchPATH(for: exe)], input: input, timeout: timeout)
     }
 }

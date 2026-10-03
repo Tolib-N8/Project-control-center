@@ -61,10 +61,10 @@ enum AIProviders {
         case .heuristics:
             return (true, "всегда доступно")
         case .claudeCode:
-            let path = await Task.detached { Shell.which("claude") }.value
+            let path = await Task.detached { CLILocator.path(for: "claude") }.value
             return path.map { (true, "найден: \($0.abbreviatingHome)") } ?? (false, "claude не установлен")
         case .codexCLI:
-            let path = await Task.detached { Shell.which("codex") }.value
+            let path = await Task.detached { CLILocator.path(for: "codex") }.value
             return path.map { (true, "найден: \($0.abbreviatingHome)") } ?? (false, "codex не установлен")
         case .anthropicAPI:
             return Keychain.get(.anthropic)?.isEmpty == false ? (true, "ключ сохранён") : (false, "нужен API-ключ")
@@ -107,9 +107,9 @@ struct ClaudeCodeProvider: AIProvider {
         let sandbox = Store.root.appendingPathComponent("ai-sandbox", isDirectory: true)
         try? FileManager.default.createDirectory(at: sandbox, withIntermediateDirectories: true)
         let prompt = request.prompt
-        let result = await Task.detached { Shell.login("claude", args, cwd: sandbox.path, input: prompt, timeout: 300) }.value
-
-        if result.status == 127 { throw AIError.cliMissing("claude") }
+        guard let result = await Task.detached(operation: { CLILocator.run("claude", args, cwd: sandbox.path, input: prompt, timeout: 300) }).value else {
+            throw AIError.cliMissing("claude")
+        }
         guard let obj = JSONText.lastObject(in: result.stdout) else {
             let err = (result.stderr.isEmpty ? result.stdout : result.stderr).trimmingCharacters(in: .whitespacesAndNewlines)
             if err.localizedCaseInsensitiveContains("login") || err.localizedCaseInsensitiveContains("auth") {
@@ -147,8 +147,9 @@ struct CodexProvider: AIProvider {
         if !model.isEmpty { args += ["-m", model] }
         args.append("-")
         let input = request.system + "\n\n" + request.prompt
-        let result = await Task.detached { Shell.login("codex", args, cwd: dir.path, input: input, timeout: 600) }.value
-        if result.status == 127 { throw AIError.cliMissing("codex") }
+        guard let result = await Task.detached(operation: { CLILocator.run("codex", args, cwd: dir.path, input: input, timeout: 600) }).value else {
+            throw AIError.cliMissing("codex")
+        }
         let text = (try? String(contentsOf: outURL, encoding: .utf8)) ?? ""
         if let obj = JSONText.firstObject(in: text) { return obj }
         let err = (result.stderr.isEmpty ? result.stdout : result.stderr).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -307,7 +308,7 @@ enum JSONText {
         return (try? JSONSerialization.jsonObject(with: Data(text[start...end].utf8))) as? [String: Any]
     }
 
-    /// The last line of output that parses as a JSON object (login shells may print noise first).
+    /// The last line of output that parses as a JSON object (tolerates anything printed before it).
     static func lastObject(in output: String) -> [String: Any]? {
         for line in output.split(separator: "\n").reversed() where line.hasPrefix("{") {
             if let obj = (try? JSONSerialization.jsonObject(with: Data(line.utf8))) as? [String: Any] { return obj }
