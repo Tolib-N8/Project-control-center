@@ -385,6 +385,16 @@ final class UpdaterTests: XCTestCase {
         XCTAssertThrowsError(try Updater.parse(try JSONSerialization.data(withJSONObject: obj)), "no app archive")
     }
 
+    func testPicksUpdaterZipWhenReleaseAlsoHasDMG() throws {
+        var obj = try XCTUnwrap(JSONSerialization.jsonObject(with: try fixture()) as? [String: Any])
+        var assets = try XCTUnwrap(obj["assets"] as? [[String: Any]])
+        assets.insert(["name": "Orbit-0.4.0.dmg", "size": 5_000_000, "digest": "sha256:" + String(repeating: "a", count: 64),
+                       "browser_download_url": "https://github.com/Tolib-N8/Project-control-center/releases/download/v0.4.0/Orbit-0.4.0.dmg"], at: 0)
+        obj["assets"] = assets
+        let release = try Updater.parse(try JSONSerialization.data(withJSONObject: obj))
+        XCTAssertEqual(release.assetName, "Orbit-0.4.0-macOS.zip")
+    }
+
     func testChecksumVerification() throws {
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("orbit-sha-\(UUID().uuidString)")
         try Data("orbit".utf8).write(to: file)

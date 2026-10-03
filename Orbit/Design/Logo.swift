@@ -88,3 +88,42 @@ struct BrandLogo: View {
         }
     }
 }
+
+// MARK: - Assembly animation
+
+/// The logo assembling itself: tile, orbit ring, the moon's lap, the planet.
+/// Shared by the launch splash and the onboarding welcome; `onAssembled` fires once the
+/// planet lands (~0.35 s) so callers can chain their own content.
+struct AnimatedLogo: View {
+    var onAssembled: () -> Void = {}
+
+    @State private var tile: CGFloat = 0
+    @State private var ring: CGFloat = 0
+    @State private var planet: CGFloat = 0
+    @State private var moon: Angle = .degrees(45 - 360)
+    @State private var moonVisible = false
+
+    var body: some View {
+        LogoArt(tile: tile, ring: ring, planet: planet, moon: moon, moonVisible: moonVisible)
+            .task { await play() }
+    }
+
+    private func play() async {
+        if Motion.reduced {
+            withAnimation(.easeOut(duration: 0.2)) {
+                tile = 1; ring = 1; planet = 1; moon = .degrees(45); moonVisible = true
+            }
+            onAssembled()
+            return
+        }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) { tile = 1 }
+        try? await Task.sleep(for: .milliseconds(120))
+        withAnimation(.easeInOut(duration: 0.5)) { ring = 1 }
+        try? await Task.sleep(for: .milliseconds(100))
+        withAnimation(.easeOut(duration: 0.15)) { moonVisible = true }
+        withAnimation(.easeOut(duration: 0.75)) { moon = .degrees(45) }
+        try? await Task.sleep(for: .milliseconds(130))
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { planet = 1 }
+        onAssembled()
+    }
+}

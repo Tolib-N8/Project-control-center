@@ -59,9 +59,12 @@ app="$work/dd/Build/Products/Release/Orbit.app"
 built=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$app/Contents/Info.plist")
 [[ $built == "$version" ]] || { echo "Built $built, expected $version"; exit 1; }
 codesign --verify --deep "$app"
+# The .dmg is for people; the .zip stays for the in-app updater (0.5.0 looks for Orbit-*-macOS.zip).
+dmg="$work/Orbit-$version.dmg"
+"$root/scripts/make-dmg.sh" "$app" "$dmg" >/dev/null
 zip="$work/Orbit-$version-macOS.zip"
 ditto -c -k --keepParent "$app" "$zip"
-say "Built $(basename "$zip") ($(du -h "$zip" | cut -f1 | tr -d ' '))"
+say "Built $(basename "$dmg") ($(du -h "$dmg" | cut -f1 | tr -d ' ')) and the updater archive"
 
 # --- GitHub release -------------------------------------------------------
 notes="$work/notes.md"
@@ -70,9 +73,11 @@ cat >> "$notes" <<EOF
 
 ## Установка
 
-Если Orbit уже установлен — он предложит обновиться сам (или «Orbit → Проверить обновления…»).
+Скачайте **\`Orbit-$version.dmg\`**, откройте его и перетащите Orbit в «Программы».
 
-Первая установка: скачайте \`Orbit-$version-macOS.zip\`, распакуйте и перенесите \`Orbit.app\` в «Программы». Приложение не нотарифицировано, поэтому первый запуск — через правый клик → «Открыть» или:
+Уже установленный Orbit обновится сам — придёт уведомление, или «Orbit → Проверить обновления…». Архив \`Orbit-$version-macOS.zip\` нужен для этих автообновлений, скачивать его не нужно.
+
+Приложение не нотарифицировано, поэтому первый запуск — через правый клик → «Открыть» или:
 \`\`\`sh
 xattr -dr com.apple.quarantine /Applications/Orbit.app
 \`\`\`
@@ -80,7 +85,7 @@ xattr -dr com.apple.quarantine /Applications/Orbit.app
 Требуется macOS 15 или новее. Данные хранятся локально в \`~/.orbit\`.
 EOF
 title="Orbit $version"
-gh release create "$tag" -R "$repo" --title "$title" --notes-file "$notes" --latest "$zip" >/dev/null
+gh release create "$tag" -R "$repo" --title "$title" --notes-file "$notes" --latest "$dmg" "$zip" >/dev/null
 say "Released https://github.com/$repo/releases/tag/$tag"
 
 # --- Optional local install -----------------------------------------------

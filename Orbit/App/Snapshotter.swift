@@ -23,7 +23,7 @@ enum Snapshotter {
         if args.contains("--splash-frames") {
             // Frames of the launch animation, then quit.
             var elapsed = 0.0
-            for t in [0.15, 0.35, 0.6, 0.9, 1.3, 1.5, 1.75, 2.4] {
+            for t in [0.15, 0.35, 0.6, 0.9, 1.3, 1.6, 2.0, 2.4, 2.8, 3.0, 3.2, 3.6] {
                 try? await Task.sleep(for: .seconds(t - elapsed))
                 elapsed = t
                 capture(to: "\(dir)/splash-\(String(format: "%.2f", t)).png")

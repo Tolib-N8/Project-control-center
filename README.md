@@ -109,7 +109,15 @@ Orbit пишет выводы по проектам, следующие шаги
 
 > Скриншоты — макеты из `design/` (Pencil). Приложение сверстано по ним и показывает ваши реальные проекты.
 
-## Быстрый старт
+## Установка
+
+Скачайте **`Orbit-X.Y.Z.dmg`** из [последнего релиза](https://github.com/Tolib-N8/Project-control-center/releases/latest), откройте и перетащите Orbit в «Программы». Дальше приложение обновляется само.
+
+<img src="scripts/dmg/preview.png" width="480" alt="Окно установки Orbit">
+
+> Orbit не нотарифицирован Apple, поэтому первый запуск — правый клик → «Открыть».
+
+## Сборка из исходников
 
 Нужны **Xcode 26+** и [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 
@@ -199,11 +207,11 @@ Orbit.app/Contents/MacOS/Orbit --data-dir /tmp/orbit-data --snapshot /tmp/shots 
 **Выпуск версии.** Добавьте раздел `## [X.Y.Z]` в CHANGELOG, закоммитьте и запустите:
 
 ```sh
-scripts/release.sh X.Y.Z            # версия, коммит, тег, push, сборка из тега, релиз на GitHub
+scripts/release.sh X.Y.Z            # версия, коммит, тег, push, сборка, .dmg и релиз на GitHub
 scripts/release.sh X.Y.Z --install  # …и установить сборку в «Программы»
 ```
 
-Установленные копии Orbit увидят релиз при следующей проверке обновлений.
+В релиз уходят два файла: оформленный **`.dmg`** для установки (окно собирает `scripts/make-dmg.sh` по `scripts/dmg/`) и **`.zip`** для встроенного обновления. Установленные копии Orbit увидят релиз при следующей проверке обновлений.
 
 ## Дорожная карта
 

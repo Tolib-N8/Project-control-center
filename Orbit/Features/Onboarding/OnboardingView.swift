@@ -2,7 +2,8 @@ import SwiftUI
 
 struct OnboardingView: View {
     @Environment(AppState.self) private var app
-    @State private var step = 1
+    /// 0 is the welcome screen, 1…3 the setup steps.
+    @State private var step = 0
     @State private var forward = true
     @State private var roots: [String] = []
     @State private var found: [FoundRepo] = []
@@ -12,7 +13,12 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if step == 0 {
+                WelcomeView { go(1) }
+                    .transition(Motion.transition(.opacity.animation(.easeOut(duration: 0.12))))
+            } else {
             topBar
+                .transition(.opacity)
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     switch step {
@@ -38,6 +44,8 @@ struct OnboardingView: View {
             }
             .uiFont(12.5, color: Theme.text3)
             .padding(.bottom, 28)
+            .transition(.opacity)
+            }
         }
         .background(Theme.bg)
         .animation(Motion.pick(Motion.page), value: step)
