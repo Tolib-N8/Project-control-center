@@ -4,122 +4,172 @@
 
 # Orbit
 
-**Центр управления проектами для разработчика, который работает вместе с ИИ-агентами.**
-
-План недели по проектам · здоровье проектов · сессии Claude Code и Codex · состояние git — в одном нативном окне macOS.
+**Vibe coding without the chaos.**<br>
+Your projects, your AI agents and your week — in one orbit.
 
 ![Version](https://img.shields.io/badge/version-0.6.2-C8F169?style=flat-square&labelColor=15171A)
 ![Platform](https://img.shields.io/badge/macOS-15%2B-ECEDEF?style=flat-square&logo=apple&logoColor=white&labelColor=15171A)
-![Swift](https://img.shields.io/badge/SwiftUI-Swift%205-F59E5B?style=flat-square&logo=swift&logoColor=white&labelColor=15171A)
-![Local first](https://img.shields.io/badge/данные-локально-5AD48A?style=flat-square&labelColor=15171A)
+![Swift](https://img.shields.io/badge/SwiftUI-native-F59E5B?style=flat-square&logo=swift&logoColor=white&labelColor=15171A)
+![Local first](https://img.shields.io/badge/data-stays%20local-5AD48A?style=flat-square&labelColor=15171A)
+![Language](https://img.shields.io/badge/UI-Russian%20·%20English%20soon-9D8CFF?style=flat-square&labelColor=15171A)
 
-<img src="design/exports/png/01-week-dashboard.png" width="900" alt="Экран «Неделя»">
+[**Download for macOS**](https://github.com/Tolib-N8/Project-control-center/releases/latest) · [Changelog](CHANGELOG.md) · [Roadmap](#roadmap)
+
+<img src="design/exports/png/01-week-dashboard.png" width="900" alt="Orbit — week dashboard">
+
+<sub><i>by a vibe coder, for vibe coders</i></sub>
 
 </div>
 
+> [!NOTE]
+> **English is coming soon.** Orbit's interface is currently in Russian (the screenshots too). A full English localization is the next item on the [roadmap](#roadmap) — this README is already in English so you know what you're getting.
+
 ---
 
-## Зачем
+## Why Orbit
 
-Когда параллельно ведёшь несколько проектов и в каждом работают агенты, легко потерять нить: где агент застрял вчера, какая ветка отстала от `main`, что лежит незакоммиченным третий день и за какой проект браться в пятницу. Orbit собирает это сам — из git и логов агентов — и предлагает план на неделю.
+When you run several projects at once and AI agents write most of the code, it's easy to lose the thread: where did the agent get stuck yesterday, which branch has drifted behind `main`, what has been sitting uncommitted for three days, and which project deserves your Friday?
 
-## Возможности
+Orbit answers that on its own. It reads your **git repositories** and the **session logs of your coding agents** (Claude Code, Codex, Aider), scores every project's health, flags problems before they hurt, and plans your week around them.
+
+## Features
 
 <table>
 <tr>
 <td width="50%" valign="top">
 
-### 📅 Неделя
-Проект в фокусе на сегодня с целью дня, последняя сессия агента, состояние git и следующие шаги. План недели с фактическими часами — проекты перетаскиваются из сайдбара на нужный день.
+### 📅 Week
+Today's focus project with a goal for the day, the last agent session, git state and next steps. A week plan with actual hours worked — drag a project from the sidebar onto any day.
 
 </td>
 <td width="50%" valign="top">
 
-### 🗓 Планировщик
-Сетка «проекты × дни». Автоплан учитывает здоровье проектов, сигналы, ваш ритм (часы по дням, проектов в день) и закреплённые дни. «Другой вариант» — пересобрать.
+### 🗓 Planner
+A projects × days grid. The auto-plan weighs project health, open signals, your rhythm (hours per day, projects per day) and pinned work days. Don't like it? Ask for another variant.
 
 </td>
 </tr>
 <tr>
 <td valign="top">
 
-### 🤖 Сессии агентов
-Claude Code, Codex и Aider: что сделано, где застрял, сколько токенов и тестов, ход сессии и транскрипт. «Продолжить с контекстом» открывает ту же сессию в терминале.
+### 🤖 Agent sessions
+Claude Code, Codex and Aider: what got done, where the agent got stuck, tokens, tests, a timeline and the transcript. **Continue with context** (*Продолжить с контекстом*) reopens the same session in your terminal.
 
 </td>
 <td valign="top">
 
 ### 🌿 Git
-Ветки, ahead/behind, отставание от `main` и конфликты, график коммитов «агенты / вы», заброшенные ветки. Коммит с готовым сообщением прямо из приложения.
+Branches, ahead/behind, drift from `main` and conflicts, an "agents vs. you" commit chart, stale branches. Commit with a ready-made message without leaving the app.
 
 </td>
 </tr>
 <tr>
 <td valign="top">
 
-### 🔔 Сигналы
-Незакоммиченное дольше суток, ветка отстала, агент откатывает правки, падают тесты, проект простаивает. Каждое правило — тумблер; сигнал закрывается сам, когда проблема ушла.
+### 🔔 Signals
+Uncommitted for over a day, branch behind `main`, an agent reverting its own edits, failing tests, an idle project. Every rule is a toggle, and a signal resolves itself once the problem is gone.
 
 </td>
 <td valign="top">
 
-### 🌅 Фоновый режим
-Проверка каждые 15 минут, утренняя сводка в 9:00, автоплан по воскресеньям в 20:00, уведомления macOS. Orbit живёт в строке меню, когда окно закрыто.
+### 🌅 Always on
+Checks every 15 minutes, a morning brief at 9:00, an automatic plan on Sunday evening, macOS notifications. Orbit lives in the menu bar when its window is closed.
 
 </td>
 </tr>
 </table>
 
-## 🧠 ИИ-анализ
+## 🧠 AI analysis
 
-Orbit пишет выводы по проектам, следующие шаги, цель дня, разбор сессий агентов, сообщения коммитов и брифы для агентов. Модель выбирается в **Настройках → Анализ** (<kbd>⌘</kbd> <kbd>,</kbd>) или в онбординге:
+Orbit writes project summaries, next steps, a goal for the day, session breakdowns ("done / stuck / what to do next"), commit messages and briefs for agents that keep going in circles. Pick the model in **Settings → Analysis** (*Настройки → Анализ*, <kbd>⌘</kbd> <kbd>,</kbd>) or during onboarding:
 
-| Провайдер | Как работает | Что нужно |
+| Provider | How it works | What you need |
 | --- | --- | --- |
-| **Claude · подписка** | `claude -p` в фоне — тот же аккаунт, что в Claude Code | Claude Code с входом в Pro / Max |
-| **Claude API** | Messages API, structured outputs | API-ключ Anthropic |
-| **Codex · подписка** | `codex exec` | Codex CLI с входом в ChatGPT |
-| **Ollama** | локальная модель | `ollama serve` |
-| **OpenAI-совместимый** | `/chat/completions` | Base URL и ключ (OpenAI, OpenRouter, LM Studio…) |
-| **Эвристики** | правила без модели | — (по умолчанию) |
+| **Claude · subscription** | runs `claude -p` in the background with your Claude Code account | Claude Code signed in to Pro / Max — no API key |
+| **Claude API** | Messages API with structured outputs | an Anthropic API key |
+| **Codex · subscription** | runs `codex exec` | Codex CLI signed in to ChatGPT |
+| **Ollama** | a local model, fully offline | `ollama serve` |
+| **OpenAI-compatible** | `/chat/completions` | base URL and key (OpenAI, OpenRouter, LM Studio…) |
+| **Heuristics** | rules, no model at all | nothing — the default |
 
-В модель уходят только **сводки**: названия файлов и веток, заголовки и итоги сессий, сообщения коммитов, ошибки тестов. Исходный код не отправляется — кроме диффа для сообщений коммитов, если включить это в настройках. Ключи хранятся в связке ключей macOS. Ответы кэшируются, а проект переанализируется только когда что-то изменилось и не чаще раза в 6 часов — подписка расходуется экономно.
+**Privacy.** Only *summaries* are sent to the model: file and branch names, session titles and outcomes, commit messages, test errors. Your source code never leaves the Mac — except the diff for commit messages, and only if you turn that on. API keys live in the macOS Keychain. Answers are cached, and a project is re-analysed only when something actually changed and at most every 6 hours, so your subscription limits are safe.
 
-## Экраны
+## Screenshots
 
 | | |
 | :---: | :---: |
-| <img src="design/exports/png/02-project-detail.png" alt="Проект"> | <img src="design/exports/png/03-projects.png" alt="Проекты"> |
-| **Проект** — здоровье, сессии, git, дни работы | **Проекты** — карточки и время по проектам |
-| <img src="design/exports/png/04-agent-sessions.png" alt="Сессии агентов"> | <img src="design/exports/png/05-git.png" alt="Git"> |
-| **Сессии агентов** — итог, затыки, рекомендация | **Git** — коммиты, репозитории, ветки |
-| <img src="design/exports/png/06-signals.png" alt="Сигналы"> | <img src="design/exports/png/07-week-planner.png" alt="Планировщик"> |
-| **Сигналы** — правила мониторинга | **Планировщик** — план на неделю |
+| <img src="design/exports/png/02-project-detail.png" alt="Project"> | <img src="design/exports/png/03-projects.png" alt="Projects"> |
+| **Project** — health trend, sessions, git, work days | **Projects** — cards and time per project |
+| <img src="design/exports/png/04-agent-sessions.png" alt="Agent sessions"> | <img src="design/exports/png/05-git.png" alt="Git"> |
+| **Agent sessions** — outcome, blockers, recommendation | **Git** — commits, repositories, branches |
+| <img src="design/exports/png/06-signals.png" alt="Signals"> | <img src="design/exports/png/07-week-planner.png" alt="Planner"> |
+| **Signals** — monitoring rules | **Planner** — the week ahead |
 
 <details>
-<summary><b>Онбординг и первый запуск</b></summary>
+<summary><b>Onboarding and first launch</b></summary>
 <br>
 
 | | |
 | :---: | :---: |
-| <img src="design/exports/png/08-onboarding-1-repos.png" alt="Репозитории"> | <img src="design/exports/png/09-onboarding-2-agents.png" alt="Агенты"> |
-| <img src="design/exports/png/10-onboarding-3-rhythm.png" alt="Ритм недели"> | <img src="design/exports/png/11-week-first-launch.png" alt="Первый запуск"> |
+| <img src="design/exports/png/08-onboarding-1-repos.png" alt="Repositories"> | <img src="design/exports/png/09-onboarding-2-agents.png" alt="Agents"> |
+| <img src="design/exports/png/10-onboarding-3-rhythm.png" alt="Weekly rhythm"> | <img src="design/exports/png/11-week-first-launch.png" alt="First launch"> |
 
 </details>
 
-> Скриншоты — макеты из `design/` (Pencil). Приложение сверстано по ним и показывает ваши реальные проекты.
+<sub>Screenshots are the design mockups from <code>design/</code> (Pencil). The app is built from them and shows your real projects.</sub>
 
-## Установка
+## Install
 
-Скачайте **`Orbit-X.Y.Z.dmg`** из [последнего релиза](https://github.com/Tolib-N8/Project-control-center/releases/latest), откройте и перетащите Orbit в «Программы». Дальше приложение обновляется само.
+1. Download **`Orbit-X.Y.Z.dmg`** from the [latest release](https://github.com/Tolib-N8/Project-control-center/releases/latest).
+2. Open it and drag **Orbit** into **Applications**.
+3. Launch it and follow the three-step setup: where your projects live, which agents to read, your weekly rhythm.
 
-<img src="scripts/dmg/preview.png" width="480" alt="Окно установки Orbit">
+<img src="scripts/dmg/preview.png" width="480" alt="Orbit installer window">
 
-> Orbit не нотарифицирован Apple, поэтому первый запуск — правый клик → «Открыть».
+> [!IMPORTANT]
+> Orbit isn't notarized by Apple yet, so the first launch needs a right-click → **Open**, or:
+> ```sh
+> xattr -dr com.apple.quarantine /Applications/Orbit.app
+> ```
 
-## Сборка из исходников
+**Updates are automatic.** Orbit checks GitHub at launch and every 6 hours, shows what's new and, with one click, downloads the update, verifies its SHA-256 checksum, version and code signature, replaces itself and relaunches. You can also use **Orbit → Check for Updates…** (*Проверить обновления…*). Your data in `~/.orbit` is never touched.
 
-Нужны **Xcode 26+** и [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+## How it works
+
+Everything is read **locally**; app state lives in `~/.orbit`.
+
+| Data | Source |
+| --- | --- |
+| Branch, ahead/behind, uncommitted files, drift from `main`, conflicts | `git status --porcelain=v2`, `git rev-list`, `git merge-tree` |
+| Commits and who made them (an agent or you) | `git log` + `Co-Authored-By` trailers + agent session windows |
+| **Claude Code** sessions | `~/.claude/projects/<folder>/*.jsonl` |
+| **Codex** sessions | `~/.codex/sessions/**/rollout-*.jsonl` + `session_index.jsonl` |
+| **Aider** sessions | `.aider.chat.history.md` in the repository root |
+| Health, plan, signals | local heuristics — `Orbit/Services` |
+| Summaries, next steps, session breakdowns | the model you chose — `Orbit/Services/AI` — or heuristics |
+
+Logs are parsed once and cached by file size and modification time, so a refresh takes about a second.
+
+<details>
+<summary><b>How project health is scored</b></summary>
+<br>
+
+A 0–100 score. Penalties: changes uncommitted for more than a day, a branch behind `main`, conflicts, red tests in the last session, more than a week without work, a high share of unfinished or rolled-back sessions. Bonuses: finished sessions and commits this week. ≥ 75 is "in good shape", 50–74 "needs attention", < 50 "critical". See [`HealthEngine.swift`](Orbit/Services/HealthEngine.swift).
+
+</details>
+
+## Keyboard shortcuts
+
+| | |
+| --- | --- |
+| <kbd>⌘</kbd> <kbd>1</kbd> … <kbd>5</kbd> | Week · Projects · Sessions · Git · Signals |
+| <kbd>⌘</kbd> <kbd>R</kbd> | Refresh data |
+| <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>P</kbd> | Plan the week |
+| <kbd>⌘</kbd> <kbd>,</kbd> | Settings (AI provider, updates) |
+
+## Build from source
+
+You need **Xcode 26+** and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 
 ```sh
 brew install xcodegen
@@ -129,97 +179,82 @@ xcodebuild -project Orbit.xcodeproj -scheme Orbit -configuration Release \
 open ~/Library/Developer/Xcode/DerivedData/Orbit/Build/Products/Release/Orbit.app
 ```
 
-При первом запуске онбординг найдёт репозитории в выбранных папках, источники логов агентов и спросит ритм недели.
-
-### Обновления
-
-Orbit обновляется сам: при запуске и каждые 6 часов он проверяет [последний релиз](https://github.com/Tolib-N8/Project-control-center/releases/latest), показывает, что нового, и по одной кнопке скачивает архив, проверяет его контрольную сумму, версию и подпись, заменяет себя и перезапускается. Вручную — «Orbit → Проверить обновления…». Настройки — в «Настройки → Общие → Обновления». Для самообновления Orbit должен лежать в папке, куда можно писать (например, «Программы»).
-
 > [!TIP]
-> Держите DerivedData вне `~/Documents`: iCloud добавляет файлам метаданные, и подпись падает с ошибкой *«resource fork, Finder information, or similar detritus not allowed»*.
-
-## Откуда берутся данные
-
-Всё читается **локально**, код никуда не отправляется. Состояние приложения — в `~/.orbit`.
-
-| Данные | Источник |
-| --- | --- |
-| Ветка, ahead/behind, незакоммиченное, отставание от `main`, конфликты | `git status --porcelain=v2`, `git rev-list`, `git merge-tree` |
-| Коммиты и их автор (агент или вы) | `git log` + трейлеры `Co-Authored-By` + окна сессий агентов |
-| Сессии **Claude Code** | `~/.claude/projects/<папка>/*.jsonl` |
-| Сессии **Codex** | `~/.codex/sessions/**/rollout-*.jsonl` + `session_index.jsonl` |
-| Сессии **Aider** | `.aider.chat.history.md` в корне репозитория |
-| Здоровье, план, сигналы | локальные эвристики — `Orbit/Services` |
-| Выводы, шаги, разбор сессий | выбранная модель — `Orbit/Services/AI`, или эвристики |
-
-Логи парсятся один раз и кэшируются по размеру и времени изменения файла, поэтому повторное обновление занимает около секунды.
+> Keep DerivedData outside `~/Documents`: iCloud adds metadata to synced files and code signing fails with *"resource fork, Finder information, or similar detritus not allowed"*.
 
 <details>
-<summary><b>Как считается здоровье проекта</b></summary>
+<summary><b>Project structure</b></summary>
 <br>
-
-Шкала 0–100. Штрафы: изменения не закоммичены дольше суток, ветка отстаёт от `main`, конфликты, красные тесты в последней сессии, простой больше недели, доля незавершённых и откаченных сессий. Бонусы: завершённые сессии и коммиты за неделю. ≥ 75 — «в хорошей форме», 50–74 — «требует внимания», < 50 — «критично». Логика — [`HealthEngine.swift`](Orbit/Services/HealthEngine.swift).
-
-</details>
-
-## Горячие клавиши
-
-| | |
-| --- | --- |
-| <kbd>⌘</kbd> <kbd>1</kbd>…<kbd>5</kbd> | Неделя · Проекты · Сессии · Git · Сигналы |
-| <kbd>⌘</kbd> <kbd>R</kbd> | Обновить данные |
-| <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>P</kbd> | Запланировать неделю |
-| <kbd>⌘</kbd> <kbd>,</kbd> | Настройки (провайдер ИИ-анализа) |
-
-## Структура проекта
 
 ```
 Orbit/
-├── App/         точка входа, AppState, строка меню
-├── Design/      токены темы и общие компоненты
-├── Models/      проекты, git, сессии, план, сигналы
-├── Services/    GitService, парсеры сессий, движки здоровья/выводов/сигналов, Planner
-│   └── AI/      провайдеры моделей и промпты анализа
-└── Features/    Неделя · Проекты · Сессии агентов · Git · Сигналы · Онбординг
-OrbitTests/      парсеры на фикстурах, git на временном репо, планировщик и сигналы
-design/          макеты Pencil и экспорты
+├── App/         entry point, AppState, menu bar, launch animation
+├── Design/      theme tokens, motion, logo, shared components
+├── Models/      projects, git, sessions, plans, signals
+├── Services/    git, session parsers, health/insight/signal engines, planner, updater
+│   └── AI/      model providers and analysis prompts
+└── Features/    Week · Projects · Agent sessions · Git · Signals · Onboarding · Settings
+OrbitTests/      parsers on fixtures, git on a temp repo, planner, signals, updater
+scripts/         release.sh, make-dmg.sh and the installer design (dmg/)
+design/          Pencil mockups and exports
 ```
 
-## Разработка
+</details>
+
+<details>
+<summary><b>Development</b></summary>
+<br>
 
 ```sh
-# тесты
+# tests
 xcodebuild test -project Orbit.xcodeproj -scheme Orbit \
   -derivedDataPath ~/Library/Developer/Xcode/DerivedData/Orbit -destination 'platform=macOS'
 
-# прогон на ваших реальных репозиториях
+# also run against your real repositories
 ORBIT_SMOKE=1 xcodebuild test …
 ```
 
-Debug-сборка умеет сохранять скриншоты экранов без разрешения на запись экрана; `--data-dir` подменяет `~/.orbit`, так что реальные данные не трогаются. Шаг `frames:projects` в `--screens` сохраняет три кадра посреди перехода, флаг `--reduce-motion` (ставьте его последним) включает режим «Уменьшить движение»:
+Debug builds can save screenshots without screen-recording permission; `--data-dir` replaces `~/.orbit`, so your real data stays untouched:
 
 ```sh
 Orbit.app/Contents/MacOS/Orbit --data-dir /tmp/orbit-data --snapshot /tmp/shots --auto-onboard
 ```
 
-Версия задаётся в одном месте — `MARKETING_VERSION` в [`project.yml`](project.yml). История изменений — в [CHANGELOG.md](CHANGELOG.md).
+`frames:projects` in `--screens` captures frames mid-transition, `--splash-frames` captures the launch animation, `--update-feed <url>` points the updater at a test feed. Put flags without a value (`--reduce-motion`, `--auto-update`) last: macOS reads launch arguments in `-key value` pairs.
 
-**Выпуск версии.** Добавьте раздел `## [X.Y.Z]` в CHANGELOG, закоммитьте и запустите:
+</details>
+
+<details>
+<summary><b>Releasing</b></summary>
+<br>
+
+The version lives in one place — `MARKETING_VERSION` in [`project.yml`](project.yml). Add a `## [X.Y.Z]` section to [CHANGELOG.md](CHANGELOG.md), commit, then:
 
 ```sh
-scripts/release.sh X.Y.Z            # версия, коммит, тег, push, сборка, .dmg и релиз на GitHub
-scripts/release.sh X.Y.Z --install  # …и установить сборку в «Программы»
+scripts/release.sh X.Y.Z            # bump, commit, tag, push, build from the tag, .dmg, GitHub release
+scripts/release.sh X.Y.Z --install  # …and install the build into /Applications
 ```
 
-В релиз уходят два файла: оформленный **`.dmg`** для установки (окно собирает `scripts/make-dmg.sh` по `scripts/dmg/`) и **`.zip`** для встроенного обновления. Установленные копии Orbit увидят релиз при следующей проверке обновлений.
+Each release ships two files: the styled **`.dmg`** for people (built by `scripts/make-dmg.sh` from `scripts/dmg/`) and a **`.zip`** for the in-app updater. Installed copies of Orbit pick the release up at their next update check.
 
-## Дорожная карта
+</details>
 
-- [x] **0.1** — все экраны на реальных данных, эвристики вместо ИИ
-- [x] **0.2** — ИИ-анализ: Claude по подписке, Claude API, Codex, Ollama, OpenAI-совместимые
-- [x] **0.3** — анимации и переходы, поддержка «Уменьшить движение»
-- [x] **0.4** — анимация запуска с логотипом
-- [x] **0.5** — встроенные обновления и выпуск версии одной командой
-- [ ] GitHub: открытые PR и статусы CI через `gh`
-- [ ] Уведомления в Telegram и на почту
-- [ ] Чаты Cursor
+## Roadmap
+
+- [x] **0.1** — every screen on real data, heuristics instead of AI
+- [x] **0.2** — AI analysis: Claude subscription, Claude API, Codex, Ollama, OpenAI-compatible
+- [x] **0.3** — animations and transitions, "Reduce motion" support
+- [x] **0.4** — launch animation
+- [x] **0.5** — self-updates and one-command releases
+- [x] **0.6** — welcome screen, drag-to-install `.dmg`
+- [ ] **English interface** — full localization, Russian stays available *(coming next)*
+- [ ] GitHub: open pull requests and CI status via `gh`
+- [ ] Notifications in Telegram and by email
+- [ ] Cursor chat history
+- [ ] Apple notarization
+
+---
+
+<div align="center">
+<sub>Made by a vibe coder, for vibe coders · <a href="https://github.com/Tolib-N8">@Tolib-N8</a></sub>
+</div>
