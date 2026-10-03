@@ -412,6 +412,7 @@ final class AppState {
         Task {
             #if DEBUG
             let immediate = ProcessInfo.processInfo.arguments.contains("--auto-update")
+                || ProcessInfo.processInfo.arguments.contains("--update-via-sheet")
             #else
             let immediate = false
             #endif
@@ -454,7 +455,15 @@ final class AppState {
                 Notifier.post(title: "Orbit \(release.version)", body: "Доступна новая версия — обновление займёт несколько секунд.")
             }
             #if DEBUG
-            let forced = ProcessInfo.processInfo.arguments.contains("--auto-update")
+            let args = ProcessInfo.processInfo.arguments
+            let forced = args.contains("--auto-update")
+            if args.contains("--update-via-sheet") {
+                // Reproduces the user path: the update sheet is open when "Установить" is pressed.
+                sheet = .update
+                try? await Task.sleep(for: .seconds(1.5))
+                installUpdate()
+                return
+            }
             #else
             let forced = false
             #endif
@@ -476,8 +485,13 @@ final class AppState {
                 }
                 updatePhase = .installing
                 // The helper swaps the bundle as soon as we are gone and relaunches the new version.
+                // AppKit refuses to terminate while a sheet is attached, so close it first; if
+                // anything else still blocks quitting, exit hard (all state is already on disk).
+                sheet = nil
                 try? await Task.sleep(for: .milliseconds(400))
                 NSApp.terminate(nil)
+                try? await Task.sleep(for: .seconds(3))
+                exit(0)
             } catch {
                 updatePhase = .failed(error.localizedDescription)
             }

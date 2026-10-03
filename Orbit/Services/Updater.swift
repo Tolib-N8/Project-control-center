@@ -217,7 +217,11 @@ enum Updater {
         let script = """
         #!/bin/zsh
         pid="$1"; new="$2"; target="$3"; backup="$4"
-        for i in {1..150}; do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
+        alive() { kill -0 "$pid" 2>/dev/null }
+        # Never swap files under a running app: wait, then ask it to quit, then insist.
+        for i in {1..100}; do alive || break; sleep 0.1; done
+        if alive; then echo "$(date) still running, sending TERM"; kill -TERM "$pid"; for i in {1..50}; do alive || break; sleep 0.1; done; fi
+        if alive; then echo "$(date) still running, sending KILL"; kill -KILL "$pid"; sleep 0.5; fi
         echo "$(date) updating $target"
         rm -rf "$backup"; mkdir -p "$(dirname "$backup")"
         if mv "$target" "$backup" && ditto "$new" "$target"; then
@@ -227,7 +231,17 @@ enum Updater {
           echo "$(date) failed, restoring previous version"
           rm -rf "$target"; mv "$backup" "$target"
         fi
-        open "$target"
+        # Let LaunchServices notice the old instance is gone and the bundle changed, then start a
+        # fresh instance (-n) and make sure it is really running.
+        sleep 0.5
+        /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$target" 2>/dev/null
+        for attempt in 1 2 3; do
+          open -n "$target" && sleep 2
+          if pgrep -f "$target/Contents/MacOS/" >/dev/null; then echo "$(date) relaunched"; exit 0; fi
+          echo "$(date) relaunch attempt $attempt failed"
+        done
+        nohup "$target/Contents/MacOS/Orbit" >/dev/null 2>&1 &
+        echo "$(date) started directly"
         """
         let scriptURL = URL(fileURLWithPath: log).deletingLastPathComponent().appendingPathComponent("swap.sh")
         try script.write(to: scriptURL, atomically: true, encoding: .utf8)
