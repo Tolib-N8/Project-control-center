@@ -25,14 +25,14 @@ struct WeekView: View {
         let monday = Week.date(fromKey: key) ?? app.currentMonday
         let sunday = Week.day(6, of: monday)
         let title = DateFormat.weekdayFull.string(from: app.now).capitalizedFirst + ", " + DateFormat.dayMonthFull.string(from: app.now)
-        let next = key != app.currentWeekKey ? " · следующая неделя" : ""
-        return PageHeader(eyebrow: "Неделя \(Week.number(monday)) · \(DateFormat.short(monday)) — \(DateFormat.short(sunday))\(next)", title: title) {
+        let next = key != app.currentWeekKey ? tr(" · следующая неделя", " · next week") : ""
+        return PageHeader(eyebrow: tr("Неделя \(Week.number(monday)) · \(DateFormat.short(monday)) — \(DateFormat.short(sunday))\(next)", "Week \(Week.number(monday)) · \(DateFormat.short(monday)) — \(DateFormat.short(sunday))\(next)"), title: title) {
             if !app.plan(key).blocks.isEmpty {
-                OrbitButton(app.isSyncing || !app.aiBusy.isEmpty ? "Анализ…" : "Проанализировать", icon: "arrow.clockwise") {
+                OrbitButton(app.isSyncing || !app.aiBusy.isEmpty ? tr("Анализ…", "Analyzing…") : tr("Проанализировать", "Analyze"), icon: "arrow.clockwise") {
                     app.analyzeNow()
                 }
             }
-            OrbitButton("Запланировать", icon: "calendar.badge.plus", kind: .primary) {
+            OrbitButton(tr("Запланировать", "Plan"), icon: "calendar.badge.plus", kind: .primary) {
                 app.sheet = .planner(weekKey: key)
             }
         }
@@ -53,8 +53,8 @@ struct TodayFocusCard: View {
             if let pid, let snap = app.snapshots[pid] {
                 content(snap, block: block)
             } else {
-                EmptyHint(symbol: "cup.and.saucer", title: "На сегодня ничего не запланировано",
-                          text: "Перетащите проект из сайдбара на сегодняшний день или откройте планировщик.")
+                EmptyHint(symbol: "cup.and.saucer", title: tr("На сегодня ничего не запланировано", "Nothing planned for today"),
+                          text: tr("Перетащите проект из сайдбара на сегодняшний день или откройте планировщик.", "Drag a project from the sidebar onto today or open the planner."))
             }
         }
     }
@@ -74,7 +74,7 @@ struct TodayFocusCard: View {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
                         ProjectSquare(colorIndex: snap.config.colorIndex)
-                        Eyebrow(text: block.map { "Сегодня в фокусе · \(timeRange($0))" } ?? "Рекомендуем сегодня")
+                        Eyebrow(text: block.map { tr("Сегодня в фокусе · \(timeRange($0))", "Today’s focus · \(timeRange($0))") } ?? tr("Рекомендуем сегодня", "Suggested for today"))
                     }
                     Button { app.screen = .project(pid) } label: {
                         Text(snap.config.name).font(OrbitFont.mono(30, .semibold)).tracking(-0.6).foregroundStyle(Theme.text)
@@ -89,7 +89,7 @@ struct TodayFocusCard: View {
                             .numericTransition(score)
                         Text("/100").uiFont(14, color: Theme.text3)
                     }
-                    Text("Здоровье проекта" + (trend == 0 ? "" : trend > 0 ? " ↑ \(trend)" : " ↓ \(-trend)")).uiFont(12, color: Theme.text2)
+                    Text(tr("Здоровье проекта", "Project health") + (trend == 0 ? "" : trend > 0 ? " ↑ \(trend)" : " ↓ \(-trend)")).uiFont(12, color: Theme.text2)
                 }
             }
 
@@ -101,11 +101,11 @@ struct TodayFocusCard: View {
             .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 10) {
-                OrbitButton("Начать рабочую сессию", icon: "play", kind: .light) { app.startWorkSession(pid) }
-                OrbitButton("Открыть в терминале", icon: "terminal") { app.openTerminal(pid) }
+                OrbitButton(tr("Начать рабочую сессию", "Start work session"), icon: "play", kind: .light) { app.startWorkSession(pid) }
+                OrbitButton(tr("Открыть в терминале", "Open in Terminal"), icon: "terminal") { app.openTerminal(pid) }
                 Spacer()
                 let n = snap.sessions.count
-                Text(n == 0 ? "Сессий агентов пока нет" : "Контекст собран из \(n) \(Plural.ru(n, "сессии", "сессий", "сессий"))").uiFont(12, color: Theme.text3)
+                Text(n == 0 ? tr("Сессий агентов пока нет", "No agent sessions yet") : tr("Контекст собран из \(n) \(Plural.ru(n, "сессии", "сессий", "сессий"))", "Context from \(Plural.sessions(n))")).uiFont(12, color: Theme.text3)
             }
         }
     }
@@ -114,25 +114,25 @@ struct TodayFocusCard: View {
     private func goalField(_ block: PlanBlock?) -> some View {
         if let block {
             let suggestion = app.projectAI(block.projectId)?.goal ?? ""
-            TextField("", text: $goal, prompt: Text(suggestion.isEmpty ? "Цель дня: добавьте, что нужно сделать…" : "Цель дня: \(suggestion)").foregroundStyle(Theme.text3))
+            TextField("", text: $goal, prompt: Text(suggestion.isEmpty ? tr("Цель дня: добавьте, что нужно сделать…", "Goal for the day: add what needs doing…") : tr("Цель дня: \(suggestion)", "Goal for the day: \(suggestion)")).foregroundStyle(Theme.text3))
                 .textFieldStyle(.plain)
                 .font(OrbitFont.ui(14))
                 .foregroundStyle(Theme.text2)
                 .focused($goalFocused)
-                .onAppear { goal = block.goal.map { "Цель дня: " + $0 } ?? "" }
-                .onChange(of: block.id) { goal = block.goal.map { "Цель дня: " + $0 } ?? "" }
+                .onAppear { goal = block.goal.map { tr("Цель дня: ", "Goal for the day: ") + $0 } ?? "" }
+                .onChange(of: block.id) { goal = block.goal.map { tr("Цель дня: ", "Goal for the day: ") + $0 } ?? "" }
                 .onSubmit { saveGoal(block) }
                 .onChange(of: goalFocused) { if !goalFocused { saveGoal(block) } }
         } else {
-            Text("Сегодня нет блока в плане — проект с самым низким здоровьем.").uiFont(14, color: Theme.text2)
+            Text(tr("Сегодня нет блока в плане — проект с самым низким здоровьем.", "No block planned today — this is the project with the lowest health.")).uiFont(14, color: Theme.text2)
         }
     }
 
     private func saveGoal(_ block: PlanBlock) {
         var text = goal.trimmingCharacters(in: .whitespaces)
-        if text.hasPrefix("Цель дня:") { text = String(text.dropFirst("Цель дня:".count)).trimmingCharacters(in: .whitespaces) }
+        if text.hasPrefix(tr("Цель дня:", "Goal for the day:")) { text = String(text.dropFirst(tr("Цель дня:", "Goal for the day:").count)).trimmingCharacters(in: .whitespaces) }
         app.updateBlock(block.id) { $0.goal = text.isEmpty ? nil : text }
-        goal = text.isEmpty ? "" : "Цель дня: " + text
+        goal = text.isEmpty ? "" : tr("Цель дня: ", "Goal for the day: ") + text
     }
 
     private func timeRange(_ b: PlanBlock) -> String {
@@ -150,7 +150,7 @@ struct TodayFocusCard: View {
     private func lastSessionPanel(_ snap: ProjectSnapshot) -> some View {
         InnerPanel {
             VStack(alignment: .leading, spacing: 12) {
-                panelHeading("cpu", "Последняя сессия агента")
+                panelHeading("cpu", tr("Последняя сессия агента", "Last agent session"))
                 if let s = snap.sessions.first {
                     HStack(spacing: 8) {
                         AgentTag(agent: s.agent)
@@ -160,7 +160,7 @@ struct TodayFocusCard: View {
                         .font(OrbitFont.ui(13)).lineSpacing(4).foregroundStyle(Theme.text)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
-                    Text("Сессий агентов пока нет").uiFont(13, color: Theme.text3)
+                    Text(tr("Сессий агентов пока нет", "No agent sessions yet")).uiFont(13, color: Theme.text3)
                 }
             }
         }
@@ -170,21 +170,21 @@ struct TodayFocusCard: View {
         let r = snap.repo
         return InnerPanel {
             VStack(alignment: .leading, spacing: 12) {
-                panelHeading("arrow.triangle.branch", "Состояние Git")
-                KeyValueRow(key: "Ветка", value: r.branch)
-                KeyValueRow(key: "Не закоммичено", value: r.changes.isEmpty ? "чисто" : Plural.files(r.changes.count),
+                panelHeading("arrow.triangle.branch", tr("Состояние Git", "Git status"))
+                KeyValueRow(key: tr("Ветка", "Branch"), value: r.branch)
+                KeyValueRow(key: tr("Не закоммичено", "Uncommitted"), value: r.changes.isEmpty ? tr("чисто", "clean") : Plural.files(r.changes.count),
                             color: r.changes.isEmpty ? Theme.text : Theme.yellow)
                 if r.upstream != nil {
-                    KeyValueRow(key: r.behind > 0 ? "Позади origin" : "Впереди origin",
+                    KeyValueRow(key: r.behind > 0 ? tr("Позади origin", "Behind origin") : tr("Впереди origin", "Ahead of origin"),
                                 value: Plural.commits(r.behind > 0 ? r.behind : r.ahead))
                 } else {
-                    KeyValueRow(key: "Origin", value: "не настроен", color: Theme.text3)
+                    KeyValueRow(key: "Origin", value: tr("не настроен", "not set up"), color: Theme.text3)
                 }
                 if let total = snap.testsTotal {
-                    KeyValueRow(key: "Тесты", value: snap.testsFailing > 0 ? "\(Plural.tests(snap.testsFailing)) падают" : "\(total) ✓",
+                    KeyValueRow(key: tr("Тесты", "Tests"), value: snap.testsFailing > 0 ? tr("\(Plural.tests(snap.testsFailing)) падают", "\(Plural.tests(snap.testsFailing)) failing") : "\(total) ✓",
                                 color: snap.testsFailing > 0 ? Theme.red : Theme.green)
                 } else if r.behindMain > 0 {
-                    KeyValueRow(key: "Позади main", value: Plural.commits(r.behindMain), color: r.behindMain >= 20 ? Theme.red : Theme.text)
+                    KeyValueRow(key: tr("Позади main", "Behind main"), value: Plural.commits(r.behindMain), color: r.behindMain >= 20 ? Theme.red : Theme.text)
                 }
             }
         }
@@ -194,7 +194,7 @@ struct TodayFocusCard: View {
         InnerPanel {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    panelHeading("checklist", app.projectAI(snap.config.id) != nil ? "Следующие шаги от ИИ" : "Следующие шаги")
+                    panelHeading("checklist", app.projectAI(snap.config.id) != nil ? tr("Следующие шаги от ИИ", "Next steps from AI") : tr("Следующие шаги", "Next steps"))
                     Spacer()
                     if app.aiBusy.contains("project:" + snap.config.id) { ProgressView().controlSize(.mini) }
                 }
@@ -227,7 +227,7 @@ struct AttentionCard: View {
         Card(padding: 0) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    Text("Требует внимания").uiFont(13.5, .semibold)
+                    Text(tr("Требует внимания", "Needs attention")).uiFont(13.5, .semibold)
                     Spacer()
                     Text("\(app.activeSignals.count)").uiFont(12, color: Theme.text3)
                 }
@@ -238,7 +238,7 @@ struct AttentionCard: View {
                 .padding(.horizontal, 0)
 
                 if signals.isEmpty {
-                    EmptyHint(symbol: "checkmark.shield", title: "Всё спокойно", text: "Ветки свежие, изменения закоммичены, агенты не буксуют.")
+                    EmptyHint(symbol: "checkmark.shield", title: tr("Всё спокойно", "All quiet"), text: tr("Ветки свежие, изменения закоммичены, агенты не буксуют.", "Branches are fresh, changes are committed, agents aren’t stuck."))
                         .padding(.top, 24)
                 } else {
                     ForEach(Array(signals.enumerated()), id: \.element.id) { i, s in
@@ -289,15 +289,15 @@ struct WeekStrip: View {
         let projectsCount = Set(plan.blocks.map(\.projectId)).count
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text("План недели").uiFont(16, .semibold)
+                Text(tr("План недели", "Week plan")).uiFont(16, .semibold)
                 Text(plan.blocks.isEmpty
-                     ? "0 из \(app.config.rhythm.weeklyHours) ч · проекты не назначены"
-                     : "\(Duration.hours(worked)) из \(Duration.hours(plan.totalHours)) ч отработано · \(Plural.projects(projectsCount))")
+                     ? tr("0 из \(app.config.rhythm.weeklyHours) ч · проекты не назначены", "0 of \(app.config.rhythm.weeklyHours) h · no projects assigned")
+                     : tr("\(Duration.hours(worked)) из \(Duration.hours(plan.totalHours)) ч отработано · \(Plural.projects(projectsCount))", "\(Duration.hours(worked)) of \(Duration.hours(plan.totalHours)) h worked · \(Plural.projects(projectsCount))"))
                     .uiFont(12.5, color: Theme.text3)
                 Spacer()
                 HStack(spacing: 16) {
-                    legend(filled: true, "Сделано")
-                    legend(filled: false, "Запланировано")
+                    legend(filled: true, tr("Сделано", "Done"))
+                    legend(filled: false, tr("Запланировано", "Planned"))
                 }
             }
             HStack(alignment: .top, spacing: 12) {
@@ -355,7 +355,7 @@ struct DayColumn: View {
                 Spacer(minLength: 40)
                 VStack(spacing: 8) {
                     Image(systemName: "cup.and.saucer").foregroundStyle(Theme.text3)
-                    Text("Выходной").uiFont(12.5, color: Theme.text3)
+                    Text(tr("Выходной", "Day off")).uiFont(12.5, color: Theme.text3)
                 }
                 .frame(maxWidth: .infinity)
             } else if !isPast {
@@ -383,7 +383,7 @@ struct DayColumn: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "plus")
-                Text("Проект")
+                Text(tr("Проект", "Project"))
             }
         }
         .menuStyle(.borderlessButton)
@@ -414,7 +414,7 @@ struct BlockChip: View {
             HStack {
                 Text(app.projectName(block.projectId)).monoFont(12.5, .medium).lineLimit(1)
                 Spacer(minLength: 4)
-                Text("\(Duration.hours(mainHours))ч").monoFont(12, .medium, color: color)
+                Text(tr("\(Duration.hours(mainHours))ч", "\(Duration.hours(mainHours))h")).monoFont(12, .medium, color: color)
             }
             Text(subtitle(actual: actual)).uiFont(11.5, color: isPast ? Theme.text3 : subtitleColor).lineLimit(1)
         }
@@ -427,15 +427,15 @@ struct BlockChip: View {
         }
         .onTapGesture { app.screen = .project(block.projectId) }
         .contextMenu {
-            Button("+1 час") { app.updateBlock(block.id, weekKey: weekKey) { $0.hours += 1 } }
-            Button("−1 час") { app.updateBlock(block.id, weekKey: weekKey) { $0.hours -= 1 } }
-            Menu("Перенести на") {
+            Button(tr("+1 час", "+1 hour")) { app.updateBlock(block.id, weekKey: weekKey) { $0.hours += 1 } }
+            Button(tr("−1 час", "−1 hour")) { app.updateBlock(block.id, weekKey: weekKey) { $0.hours -= 1 } }
+            Menu(tr("Перенести на", "Move to")) {
                 ForEach(0..<7, id: \.self) { d in
                     Button(Week.shortNames[d]) { app.updateBlock(block.id, weekKey: weekKey) { $0.day = d } }
                 }
             }
             Divider()
-            Button("Убрать из плана", role: .destructive) { app.removeBlock(block.id, weekKey: weekKey) }
+            Button(tr("Убрать из плана", "Remove from plan"), role: .destructive) { app.removeBlock(block.id, weekKey: weekKey) }
         }
     }
 
@@ -446,7 +446,7 @@ struct BlockChip: View {
     }
 
     private func subtitle(actual: Double) -> String {
-        if isPast { return "план \(Duration.hours(block.hours))ч" }
+        if isPast { return tr("план \(Duration.hours(block.hours))ч", "plan \(Duration.hours(block.hours))h") }
         if isToday {
             let start = block.startHour ?? Double(app.config.rhythm.dayStartHour)
             return "\(hourText(start)) — \(hourText(start + block.hours))"
@@ -455,7 +455,7 @@ struct BlockChip: View {
         if let snap = app.snapshots[block.projectId] {
             return InsightEngine.plannerNote(snap, signals: app.activeSignals.filter { $0.projectId == block.projectId })
         }
-        return "план \(Duration.hours(block.hours))ч"
+        return tr("план \(Duration.hours(block.hours))ч", "plan \(Duration.hours(block.hours))h")
     }
 }
 
@@ -468,12 +468,12 @@ struct ProjectsTable: View {
         let rows = app.activeSnapshots.sorted { (app.health[$0.config.id] ?? 0) > (app.health[$1.config.id] ?? 0) }
         VStack(spacing: 0) {
             HStack(spacing: 16) {
-                col("Проект", width: 170)
-                col(app.aiLabel != nil ? "Вывод ИИ по сессиям" : "Вывод по сессиям", flex: true)
+                col(tr("Проект", "Project"), width: 170)
+                col(app.aiLabel != nil ? tr("Вывод ИИ по сессиям", "AI take on sessions") : tr("Вывод по сессиям", "Session summary"), flex: true)
                 col("Git", width: 160)
-                col("Сессии / 7 дн.", width: 110)
-                col("Здоровье", width: 100)
-                col("В плане", width: 100)
+                col(tr("Сессии / 7 дн.", "Sessions / 7 d"), width: 110)
+                col(tr("Здоровье", "Health"), width: 100)
+                col(tr("В плане", "Planned"), width: 100)
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 14)
@@ -500,8 +500,8 @@ struct ProjectsTable: View {
         let score = app.health[pid] ?? 0
         let r = snap.repo
         let gitExtra: (String, Color) = r.behindMain >= 10 ? ("−\(r.behindMain)", Theme.red)
-            : r.changes.isEmpty && r.ahead == 0 ? ("чисто", Theme.text2)
-            : r.ahead > 0 ? ("+\(r.ahead)", Theme.text2) : ("\(r.changes.count) изм.", Theme.yellow)
+            : r.changes.isEmpty && r.ahead == 0 ? (tr("чисто", "clean"), Theme.text2)
+            : r.ahead > 0 ? ("+\(r.ahead)", Theme.text2) : (tr("\(r.changes.count) изм.", "\(r.changes.count) changed"), Theme.yellow)
         let week = snap.sessions(in: 7).count
         return HStack(spacing: 16) {
             HStack(spacing: 10) {
@@ -538,7 +538,7 @@ struct ProjectsTable: View {
         let today = Week.weekdayIndex(app.now)
         let plan = app.currentPlan
         if plan.blocks(on: today).contains(where: { $0.projectId == pid }) {
-            return Text("Сегодня").uiFont(13, .medium, color: Theme.accent)
+            return Text(tr("Сегодня", "Today")).uiFont(13, .medium, color: Theme.accent)
         }
         if let d = plan.blocks.filter({ $0.projectId == pid && $0.day > today }).map(\.day).min() {
             return Text(DateFormat.weekdayShort(Week.day(d, of: app.currentMonday))).uiFont(13, color: Theme.text2)

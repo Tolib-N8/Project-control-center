@@ -98,6 +98,7 @@ enum Planner {
 
         var plan = WeekPlan(weekKey: weekKey, blocks: blocks, generated: true)
         plan.rationale = rationale(demands: demands, blocks: blocks, projects: projects)
+        plan.rationaleLang = L10n.current.rawValue
         return plan
     }
 
@@ -115,27 +116,27 @@ enum Planner {
         func name(_ id: String) -> String { projects.first { $0.config.id == id }?.config.name ?? id }
         var parts: [String] = []
         if let urgent = demands.first(where: \.urgent), let first = blocks.filter({ $0.projectId == urgent.projectId }).map(\.day).min() {
-            parts.append("\(name(urgent.projectId)) поставлен на \(dayName(first).lowercased()): есть критичный сигнал.")
+            parts.append(tr("\(name(urgent.projectId)) поставлен на \(dayName(first).lowercased()): есть критичный сигнал.", "\(name(urgent.projectId)) goes on \(dayName(first)): it has a critical signal."))
         }
         if let big = demands.max(by: { $0.hours < $1.hours }), big.hours >= 8 {
-            parts.append("\(name(big.projectId)) — длинными блоками от 4 ч, у него больше всего работы.")
+            parts.append(tr("\(name(big.projectId)) — длинными блоками от 4 ч, у него больше всего работы.", "\(name(big.projectId)) gets long blocks of 4 h or more: it has the most work."))
         }
         let skipped = projects.filter { p in !blocks.contains { $0.projectId == p.config.id } }
         if !skipped.isEmpty {
-            parts.append("Без времени на этой неделе: \(skipped.map(\.config.name).joined(separator: ", ")).")
+            parts.append(tr("Без времени на этой неделе: \(skipped.map(\.config.name).joined(separator: ", ")).", "No time this week: \(skipped.map(\.config.name).joined(separator: ", "))."))
         }
-        if parts.isEmpty { parts.append("Время распределено по здоровью проектов и давности последней работы.") }
+        if parts.isEmpty { parts.append(tr("Время распределено по здоровью проектов и давности последней работы.", "Time is split by project health and how long ago each was last worked on.")) }
         return parts.joined(separator: " ")
     }
 
     /// "рекомендуем 10—12 ч"
     static func recommendation(for projectId: String, demands: [Demand]) -> String? {
         guard let d = demands.first(where: { $0.projectId == projectId }) else { return nil }
-        return "рекомендуем \(max(1, d.hours - 1))—\(d.hours + 1) ч"
+        return tr("рекомендуем \(max(1, d.hours - 1))—\(d.hours + 1) ч", "suggested \(max(1, d.hours - 1))–\(d.hours + 1) h")
     }
 
     static func dayName(_ index: Int) -> String {
-        ["Понедельник", "Вторник", "Среду", "Четверг", "Пятницу", "Субботу", "Воскресенье"][index]
+        [tr("Понедельник", "Monday"), tr("Вторник", "Tuesday"), tr("Среду", "Wednesday"), tr("Четверг", "Thursday"), tr("Пятницу", "Friday"), tr("Субботу", "Saturday"), tr("Воскресенье", "Sunday")][index]
     }
 }
 

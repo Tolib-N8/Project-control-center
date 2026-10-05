@@ -7,26 +7,26 @@ enum SignalRuleKind: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .uncommitted: "Незакоммиченные изменения"
-        case .behindMain: "Ветка отстала от main"
-        case .agentReverts: "Агент откатывает правки"
-        case .testsFailing: "Тесты падают"
-        case .idle: "Проект без работы"
-        case .skippedDay: "День пропущен по плану"
-        case .tokens: "Расход токенов"
+        case .uncommitted: tr("Незакоммиченные изменения", "Uncommitted changes")
+        case .behindMain: tr("Ветка отстала от main", "Branch behind main")
+        case .agentReverts: tr("Агент откатывает правки", "Agent reverts its edits")
+        case .testsFailing: tr("Тесты падают", "Tests failing")
+        case .idle: tr("Проект без работы", "Idle project")
+        case .skippedDay: tr("День пропущен по плану", "Planned day skipped")
+        case .tokens: tr("Расход токенов", "Token usage")
         }
     }
 
     func subtitle(_ threshold: Double) -> String {
         let t = Int(threshold)
         switch self {
-        case .uncommitted: return "дольше \(t) ч"
-        case .behindMain: return "больше \(t) коммитов"
-        case .agentReverts: return "\(t) раза подряд"
-        case .testsFailing: return "в последней сессии агента"
-        case .idle: return "дольше \(t) дней"
-        case .skippedDay: return "в конце дня"
-        case .tokens: return "больше \(t / 1_000_000)M за сессию"
+        case .uncommitted: return tr("дольше \(t) ч", "longer than \(t) h")
+        case .behindMain: return tr("больше \(t) коммитов", "more than \(t) commits")
+        case .agentReverts: return tr("\(t) раза подряд", "\(t) times in a row")
+        case .testsFailing: return tr("в последней сессии агента", "in the latest agent session")
+        case .idle: return tr("дольше \(t) дней", "longer than \(t) days")
+        case .skippedDay: return tr("в конце дня", "at the end of the day")
+        case .tokens: return tr("больше \(t / 1_000_000)M за сессию", "over \(t / 1_000_000)M per session")
         }
     }
 
@@ -72,7 +72,7 @@ struct SignalRuleConfig: Codable, Hashable {
 enum SignalSeverity: String, Codable {
     case critical, warning
 
-    var title: String { self == .critical ? "Критично" : "Внимание" }
+    var title: String { self == .critical ? tr("Критично", "Critical") : tr("Внимание", "Warning") }
 }
 
 enum SignalState: String, Codable {

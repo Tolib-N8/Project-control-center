@@ -5,15 +5,25 @@ struct ProjectsView: View {
     @State private var query = ""
     @State private var sort: Sort = .health
 
-    enum Sort: String, CaseIterable { case health = "здоровье", name = "имя", activity = "активность" }
+    enum Sort: String, CaseIterable {
+        case health, name, activity
+
+        var title: String {
+            switch self {
+            case .health: tr("здоровье", "health")
+            case .name: tr("имя", "name")
+            case .activity: tr("активность", "activity")
+            }
+        }
+    }
 
     var body: some View {
         let archived = app.config.projects.filter(\.archived)
         Page {
-            PageHeader(eyebrow: "\(app.config.activeProjects.count) активных · \(archived.count) в архиве", title: "Проекты") {
+            PageHeader(eyebrow: tr("\(app.config.activeProjects.count) активных · \(archived.count) в архиве", "\(app.config.activeProjects.count) active · \(archived.count) archived"), title: tr("Проекты", "Projects")) {
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass").font(.system(size: 12)).foregroundStyle(Theme.text3)
-                    TextField("", text: $query, prompt: Text("Поиск проекта").foregroundStyle(Theme.text3))
+                    TextField("", text: $query, prompt: Text(tr("Поиск проекта", "Search projects")).foregroundStyle(Theme.text3))
                         .textFieldStyle(.plain).font(OrbitFont.ui(13))
                 }
                 .padding(.vertical, 9).padding(.horizontal, 12)
@@ -21,11 +31,11 @@ struct ProjectsView: View {
                 .background(Theme.surface, in: RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.border))
 
-                MenuChip(icon: "arrow.up.arrow.down", title: "Сортировка: \(sort.rawValue)", chevron: false) {
-                    ForEach(Sort.allCases, id: \.self) { s in Button(s.rawValue.capitalizedFirst) { sort = s } }
+                MenuChip(icon: "arrow.up.arrow.down", title: tr("Сортировка: \(sort.title)", "Sort: \(sort.title)"), chevron: false) {
+                    ForEach(Sort.allCases, id: \.self) { s in Button(s.title.capitalizedFirst) { sort = s } }
                 }
 
-                OrbitButton("Добавить проект", icon: "folder.badge.plus", kind: .primary, action: addProject)
+                OrbitButton(tr("Добавить проект", "Add project"), icon: "folder.badge.plus", kind: .primary, action: addProject)
             }
 
             let cells: [ProjectSnapshot?] = sorted.map { Optional($0) } + [nil]
@@ -49,13 +59,13 @@ struct ProjectsView: View {
             ForEach(archived) { p in
                 HStack(spacing: 14) {
                     Image(systemName: "archivebox").foregroundStyle(Theme.text2)
-                    Text("Архив").uiFont(14, .semibold)
+                    Text(tr("Архив", "Archive")).uiFont(14, .semibold)
                     Text(p.name).monoFont(13, color: Theme.text2)
-                    Text(app.repos[p.id]?.lastCommit.map { "последняя работа \(DateFormat.short($0.date))" } ?? "").uiFont(13, color: Theme.text3)
+                    Text(app.repos[p.id]?.lastCommit.map { tr("последняя работа \(DateFormat.short($0.date))", "last worked \(DateFormat.short($0.date))") } ?? "").uiFont(13, color: Theme.text3)
                     Spacer()
-                    Button("Вернуть в работу") { app.updateProject(p.id) { $0.archived = false } }
+                    Button(tr("Вернуть в работу", "Restore")) { app.updateProject(p.id) { $0.archived = false } }
                         .buttonStyle(PlainButtonStyle2()).font(OrbitFont.ui(13, .medium))
-                    Button("Отключить") { app.removeProject(p.id) }
+                    Button(tr("Отключить", "Remove")) { app.removeProject(p.id) }
                         .buttonStyle(PlainButtonStyle2()).font(OrbitFont.ui(13)).foregroundStyle(Theme.text3)
                 }
                 .padding(.horizontal, 20).padding(.vertical, 16)
@@ -74,7 +84,7 @@ struct ProjectsView: View {
     }
 
     private func addProject() {
-        if let path = FolderPicker.pick(message: "Выберите папку с git-репозиторием") { app.addProject(path: path) }
+        if let path = FolderPicker.pick(message: tr("Выберите папку с git-репозиторием", "Choose a folder with a git repository")) { app.addProject(path: path) }
     }
 }
 
@@ -109,16 +119,16 @@ struct ProjectCard: View {
                 }
                 Rectangle().fill(Theme.border).frame(height: 1)
                 HStack(alignment: .top) {
-                    stat("\(snap.sessions(in: 7).count)", "Сессии / 7 дн.")
-                    stat("\(snap.commits(in: 7).count)", "Коммиты / 7 дн.")
-                    stat("\(r.changes.count)", "Изменения", color: r.changes.isEmpty ? Theme.text : Theme.yellow)
+                    stat("\(snap.sessions(in: 7).count)", tr("Сессии / 7 дн.", "Sessions / 7 d"))
+                    stat("\(snap.commits(in: 7).count)", tr("Коммиты / 7 дн.", "Commits / 7 d"))
+                    stat("\(r.changes.count)", tr("Изменения", "Changes"), color: r.changes.isEmpty ? Theme.text : Theme.yellow)
                 }
                 Rectangle().fill(Theme.border).frame(height: 1)
                 HStack(spacing: 6) {
                     ForEach(workDays, id: \.self) { d in
                         Tag(text: Week.shortNames[d], color: Theme.projectColor(snap.config.colorIndex), size: 12)
                     }
-                    if workDays.isEmpty { Text("не запланирован").uiFont(12, color: Theme.text3) }
+                    if workDays.isEmpty { Text(tr("не запланирован", "not planned")).uiFont(12, color: Theme.text3) }
                     Spacer()
                     Text(snap.lastActivity.map { DateFormat.relativeDay($0) } ?? "—").uiFont(12.5, color: Theme.text3)
                 }
@@ -130,9 +140,9 @@ struct ProjectCard: View {
         }
         .buttonStyle(PlainButtonStyle2())
         .contextMenu {
-            Button("Открыть в терминале") { app.openTerminal(pid) }
-            Button("Показать в Finder") { Shell.reveal(snap.config.path) }
-            Button("В архив") { app.updateProject(pid) { $0.archived = true } }
+            Button(tr("Открыть в терминале", "Open in Terminal")) { app.openTerminal(pid) }
+            Button(tr("Показать в Finder", "Show in Finder")) { Shell.reveal(snap.config.path) }
+            Button(tr("В архив", "Archive")) { app.updateProject(pid) { $0.archived = true } }
         }
     }
 
@@ -157,8 +167,8 @@ struct ConnectCard: View {
         Button(action: action) {
             VStack(spacing: 12) {
                 IconBox(symbol: "folder.badge.plus", color: Theme.text2, size: 40)
-                Text("Подключить репозиторий").uiFont(14, .semibold)
-                Text("Укажите папку — Orbit найдёт git и логи сессий Claude Code, Codex и Aider")
+                Text(tr("Подключить репозиторий", "Add repository")).uiFont(14, .semibold)
+                Text(tr("Укажите папку — Orbit найдёт git и логи сессий Claude Code, Codex и Aider", "Pick a folder — Orbit finds git and the Claude Code, Codex and Aider session logs"))
                     .uiFont(13, color: Theme.text2).multilineTextAlignment(.center).frame(maxWidth: 280)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -189,9 +199,9 @@ struct MonthTimeCard: View {
         Card(padding: 20) {
             VStack(alignment: .leading, spacing: 18) {
                 HStack {
-                    Text("Время по проектам · \(DateFormat.monthStandalone.string(from: app.now))").uiFont(14, .semibold)
+                    Text(tr("Время по проектам · \(DateFormat.monthStandalone.string(from: app.now))", "Time per project · \(DateFormat.monthStandalone.string(from: app.now))")).uiFont(14, .semibold)
                     Spacer()
-                    Text("\(Duration.hours(actual)) ч фактически · \(Duration.hours(planned)) ч по плану").uiFont(12.5, color: Theme.text3)
+                    Text(tr("\(Duration.hours(actual)) ч фактически · \(Duration.hours(planned)) ч по плану", "\(Duration.hours(actual)) h actual · \(Duration.hours(planned)) h planned")).uiFont(12.5, color: Theme.text3)
                 }
                 GeometryReader { geo in
                     HStack(spacing: 4) {
@@ -212,9 +222,9 @@ struct MonthTimeCard: View {
                         VStack(alignment: .leading, spacing: 6) {
                             ProjectLabel(projectId: snap.config.id, size: 12.5)
                             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                                Text("\(Duration.hours(hours)) ч").uiFont(16, .semibold)
+                                Text(tr("\(Duration.hours(hours)) ч", "\(Duration.hours(hours)) h")).uiFont(16, .semibold)
                                 if plan > 0 {
-                                    Text("из \(Duration.hours(plan)) ч").uiFont(12, color: hours < plan * 0.6 ? Theme.yellow : Theme.text3)
+                                    Text(tr("из \(Duration.hours(plan)) ч", "of \(Duration.hours(plan)) h")).uiFont(12, color: hours < plan * 0.6 ? Theme.yellow : Theme.text3)
                                 }
                             }
                         }

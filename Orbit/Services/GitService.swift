@@ -9,7 +9,7 @@ enum GitService {
     static func status(_ repo: String, historyDays: Int = 45) -> RepoStatus {
         var s = RepoStatus()
         guard isRepo(repo) else {
-            s.error = "Не git-репозиторий"
+            s.error = tr("Не git-репозиторий", "Not a git repository")
             return s
         }
         readBranchAndChanges(repo, into: &s)
@@ -230,7 +230,7 @@ enum GitService {
         if !files.isEmpty { args += ["--"] + files }
         var out = Shell.git(repo, args).stdout
         let untracked = Shell.git(repo, ["ls-files", "--others", "--exclude-standard"]).stdout
-        if !untracked.isEmpty { out += "\n# Новые файлы (не отслеживаются):\n" + untracked }
+        if !untracked.isEmpty { out += tr("\n# Новые файлы (не отслеживаются):\n", "\n# New files (untracked):\n") + untracked }
         return out
     }
 
@@ -251,7 +251,7 @@ enum GitService {
         var s = RepoStatus()
         readBranchAndChanges(repo, into: &s)
         guard s.isClean else {
-            return ShellResult(status: 1, stdout: "", stderr: "Есть незакоммиченные изменения — сначала закоммитьте их.")
+            return ShellResult(status: 1, stdout: "", stderr: tr("Есть незакоммиченные изменения — сначала закоммитьте их.", "There are uncommitted changes — commit them first."))
         }
         let original = s.branch
         let r = Shell.git(repo, ["rebase", main, branch], timeout: 120)

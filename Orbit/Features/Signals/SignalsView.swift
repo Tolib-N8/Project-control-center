@@ -8,11 +8,11 @@ struct SignalsView: View {
         let list = app.signals.filter { $0.state == tab }
         let resolvedMonth = app.signals.filter { $0.state == .resolved && ($0.resolvedAt ?? .distantPast) > app.now.addingTimeInterval(-30 * 86400) }
         VStack(alignment: .leading, spacing: 28) {
-            PageHeader(eyebrow: "Проверка каждые 15 минут · \(resolvedMonth.count) решено за месяц", title: "Сигналы") {
+            PageHeader(eyebrow: tr("Проверка каждые 15 минут · \(resolvedMonth.count) решено за месяц", "Checked every 15 minutes · \(resolvedMonth.count) resolved this month"), title: tr("Сигналы", "Signals")) {
                 SegmentedTabs(items: [
-                    (SignalState.active, "Активные · \(count(.active))"),
-                    (.snoozed, "Отложенные · \(count(.snoozed))"),
-                    (.resolved, "Решённые · \(count(.resolved))"),
+                    (SignalState.active, tr("Активные · \(count(.active))", "Active · \(count(.active))")),
+                    (.snoozed, tr("Отложенные · \(count(.snoozed))", "Snoozed · \(count(.snoozed))")),
+                    (.resolved, tr("Решённые · \(count(.resolved))", "Resolved · \(count(.resolved))")),
                 ], selection: $tab)
             }
             HStack(alignment: .top, spacing: 28) {
@@ -33,7 +33,7 @@ struct SignalsView: View {
                             }
                         }
                         if tab == .active && !list.isEmpty && !resolvedMonth.isEmpty {
-                            Eyebrow(text: "Недавно решено").padding(.top, 10)
+                            Eyebrow(text: tr("Недавно решено", "Recently resolved")).padding(.top, 10)
                             ForEach(resolvedMonth.prefix(4)) { s in resolvedRow(s) }
                         }
                     }
@@ -59,17 +59,17 @@ struct SignalsView: View {
                 .font(.system(size: 26)).foregroundStyle(Theme.green)
                 .frame(width: 56, height: 56)
                 .background(Theme.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
-            Text(tab == .active ? "Всё спокойно" : tab == .snoozed ? "Отложенных нет" : "Пока ничего не решено").uiFont(22, .semibold)
+            Text(tab == .active ? tr("Всё спокойно", "All quiet") : tab == .snoozed ? tr("Отложенных нет", "Nothing snoozed") : tr("Пока ничего не решено", "Nothing resolved yet")).uiFont(22, .semibold)
             if tab == .active {
-                Text("Ветки свежие, изменения закоммичены, агенты не буксуют.\nПоследняя проверка — \(app.lastSync.map { DateFormat.ago($0, now: app.now) } ?? "ещё не было").")
+                Text(tr("Ветки свежие, изменения закоммичены, агенты не буксуют.\nПоследняя проверка — \(app.lastSync.map { DateFormat.ago($0, now: app.now) } ?? "ещё не было").", "Branches are fresh, changes are committed, agents aren’t stuck.\nLast check: \(app.lastSync.map { DateFormat.ago($0, now: app.now) } ?? "not yet")."))
                     .uiFont(14, color: Theme.text2).multilineTextAlignment(.center).lineSpacing(5)
                 HStack(spacing: 22) {
                     check(Plural.repos(app.config.activeProjects.count))
                     check(Plural.sessions(app.sessions.filter { $0.start > app.now.addingTimeInterval(-30 * 86400) }.count))
-                    check("тесты зелёные")
+                    check(tr("тесты зелёные", "tests green"))
                 }
                 .padding(.top, 6)
-                OrbitButton(app.isSyncing ? "Проверяем…" : "Проверить сейчас", icon: "arrow.clockwise") { Task { await app.refresh() } }
+                OrbitButton(app.isSyncing ? tr("Проверяем…", "Checking…") : tr("Проверить сейчас", "Check now"), icon: "arrow.clockwise") { Task { await app.refresh() } }
                     .padding(.top, 6)
             }
         }
@@ -110,20 +110,20 @@ struct SignalCard: View {
                     HStack(spacing: 10) {
                         Tag(text: s.severity.title, color: color, size: 12)
                         ProjectLabel(projectId: s.projectId, size: 13, color: Theme.text2)
-                        Text("· обнаружено \(DateFormat.relativeDay(s.detectedAt))").uiFont(12.5, color: Theme.text3)
+                        Text(tr("· обнаружено \(DateFormat.relativeDay(s.detectedAt))", "· detected \(DateFormat.relativeDay(s.detectedAt))")).uiFont(12.5, color: Theme.text3)
                         Spacer()
                         if s.state == .snoozed {
                             Button { withMotion(Motion.page) { app.unsnooze(s.id) } } label: {
-                                Label("Вернуть", systemImage: "bell").uiFont(12.5, color: Theme.text2)
+                                Label(tr("Вернуть", "Unsnooze"), systemImage: "bell").uiFont(12.5, color: Theme.text2)
                             }
                             .buttonStyle(PlainButtonStyle2())
                         } else {
                             Menu {
-                                Button("На день") { withMotion(Motion.page) { app.snooze(s.id, days: 1) } }
-                                Button("На 3 дня") { withMotion(Motion.page) { app.snooze(s.id, days: 3) } }
-                                Button("На неделю") { withMotion(Motion.page) { app.snooze(s.id, days: 7) } }
+                                Button(tr("На день", "For a day")) { withMotion(Motion.page) { app.snooze(s.id, days: 1) } }
+                                Button(tr("На 3 дня", "For 3 days")) { withMotion(Motion.page) { app.snooze(s.id, days: 3) } }
+                                Button(tr("На неделю", "For a week")) { withMotion(Motion.page) { app.snooze(s.id, days: 7) } }
                             } label: {
-                                Label("Отложить", systemImage: "bell.slash").uiFont(12.5, color: Theme.text2)
+                                Label(tr("Отложить", "Snooze"), systemImage: "bell.slash").uiFont(12.5, color: Theme.text2)
                             }
                             .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                         }
@@ -150,32 +150,32 @@ struct SignalCard: View {
         let repo = app.repos[pid]
         switch s.kind {
         case .behindMain:
-            OrbitButton("Rebase с агентом", icon: "sparkles", kind: .primary) {
-                app.runAgent(pid, prompt: "Сделай rebase ветки \(repo?.branch ?? "") на \(repo?.mainBranch ?? "main"). Разреши конфликты, сохрани смысл обеих сторон, прогони тесты и покажи итог перед push.")
+            OrbitButton(tr("Rebase с агентом", "Rebase with an agent"), icon: "sparkles", kind: .primary) {
+                app.runAgent(pid, prompt: tr("Сделай rebase ветки \(repo?.branch ?? "") на \(repo?.mainBranch ?? "main"). Разреши конфликты, сохрани смысл обеих сторон, прогони тесты и покажи итог перед push.", "Rebase branch \(repo?.branch ?? "") onto \(repo?.mainBranch ?? "main"). Resolve conflicts keeping the intent of both sides, run the tests and show me the result before pushing."))
             }
-            OrbitButton("Перенести день", icon: "calendar") { app.sheet = .planner(weekKey: app.currentWeekKey) }
+            OrbitButton(tr("Перенести день", "Move the day"), icon: "calendar") { app.sheet = .planner(weekKey: app.currentWeekKey) }
         case .agentReverts:
-            OrbitButton("Составить бриф для агента", icon: "doc.text", kind: .primary) { app.sheet = .brief(signalId: s.id) }
-            OrbitButton("Сессии", icon: "eye") {
+            OrbitButton(tr("Составить бриф для агента", "Write an agent brief"), icon: "doc.text", kind: .primary) { app.sheet = .brief(signalId: s.id) }
+            OrbitButton(tr("Сессии", "Sessions"), icon: "eye") {
                 app.sessionFilterProject = pid
                 app.screen = .sessions
             }
         case .uncommitted:
-            OrbitButton("Закоммитить", icon: "point.topleft.down.to.point.bottomright.curvepath", kind: .primary) { app.sheet = .commit(projectId: pid) }
-            OrbitButton("Посмотреть дифф", icon: "chevron.left.forwardslash.chevron.right") { app.sheet = .diff(projectId: pid) }
+            OrbitButton(tr("Закоммитить", "Commit"), icon: "point.topleft.down.to.point.bottomright.curvepath", kind: .primary) { app.sheet = .commit(projectId: pid) }
+            OrbitButton(tr("Посмотреть дифф", "View diff"), icon: "chevron.left.forwardslash.chevron.right") { app.sheet = .diff(projectId: pid) }
         case .testsFailing:
-            OrbitButton("Починить с агентом", icon: "sparkles", kind: .primary) {
+            OrbitButton(tr("Починить с агентом", "Fix with an agent"), icon: "sparkles", kind: .primary) {
                 let test = app.snapshots[pid]?.lastTestedSession?.lastFailingTest.map { " (\($0))" } ?? ""
-                app.runAgent(pid, prompt: "В проекте падают тесты\(test). Запусти тесты, найди причину и почини. Не меняй тесты без необходимости.")
+                app.runAgent(pid, prompt: tr("В проекте падают тесты\(test). Запусти тесты, найди причину и почини. Не меняй тесты без необходимости.", "Tests are failing in this project\(test). Run the tests, find the cause and fix it. Don’t change the tests unless you have to."))
             }
-            OrbitButton("Терминал", icon: "terminal") { app.openTerminal(pid) }
+            OrbitButton(tr("Терминал", "Terminal"), icon: "terminal") { app.openTerminal(pid) }
         case .idle:
-            OrbitButton("Запланировать", icon: "calendar.badge.plus", kind: .primary) { app.sheet = .planner(weekKey: app.currentWeekKey) }
-            OrbitButton("В архив", icon: "archivebox") { app.updateProject(pid) { $0.archived = true } }
+            OrbitButton(tr("Запланировать", "Plan"), icon: "calendar.badge.plus", kind: .primary) { app.sheet = .planner(weekKey: app.currentWeekKey) }
+            OrbitButton(tr("В архив", "Archive"), icon: "archivebox") { app.updateProject(pid) { $0.archived = true } }
         case .skippedDay:
-            OrbitButton("Перенести блок", icon: "calendar", kind: .primary) { app.sheet = .planner(weekKey: app.currentWeekKey) }
+            OrbitButton(tr("Перенести блок", "Move the block"), icon: "calendar", kind: .primary) { app.sheet = .planner(weekKey: app.currentWeekKey) }
         case .tokens:
-            OrbitButton("Сессии", icon: "eye", kind: .primary) {
+            OrbitButton(tr("Сессии", "Sessions"), icon: "eye", kind: .primary) {
                 app.sessionFilterProject = pid
                 app.screen = .sessions
             }
@@ -190,8 +190,8 @@ struct RulesPanel: View {
         @Bindable var app = app
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Правила мониторинга").uiFont(15, .semibold)
-                Text("Когда Orbit должен поднимать сигнал").uiFont(12.5, color: Theme.text3)
+                Text(tr("Правила мониторинга", "Monitoring rules")).uiFont(15, .semibold)
+                Text(tr("Когда Orbit должен поднимать сигнал", "When Orbit should raise a signal")).uiFont(12.5, color: Theme.text3)
             }
             .padding(.bottom, 16)
             .hairline()
@@ -214,16 +214,16 @@ struct RulesPanel: View {
             Spacer(minLength: 24)
 
             VStack(alignment: .leading, spacing: 12) {
-                Text("Куда отправлять").uiFont(13, .semibold, color: Theme.text2)
+                Text(tr("Куда отправлять", "Deliver to")).uiFont(13, .semibold, color: Theme.text2)
                 HStack(spacing: 8) {
                     channel("desktopcomputer", "macOS", on: app.config.notifyMacOS) {
                         app.config.notifyMacOS.toggle()
                         app.saveConfig()
                     }
                     channel("paperplane", "Telegram", on: false, disabled: true) {}
-                    channel("envelope", "Почта", on: false, disabled: true) {}
+                    channel("envelope", tr("Почта", "Email"), on: false, disabled: true) {}
                 }
-                Text(app.config.rhythm.morningBrief ? "Утренняя сводка в 9:00 перед началом дня · Telegram и почта — скоро" : "Утренняя сводка выключена")
+                Text(app.config.rhythm.morningBrief ? tr("Утренняя сводка в 9:00 перед началом дня · Telegram и почта — скоро", "Morning brief at 9:00 before the day starts · Telegram and email soon") : tr("Утренняя сводка выключена", "Morning brief is off"))
                     .uiFont(12, color: Theme.text3)
             }
             .padding(18)
@@ -248,7 +248,7 @@ struct RulesPanel: View {
         }
         .buttonStyle(PlainButtonStyle2())
         .disabled(disabled)
-        .help(disabled ? "Будет во второй фазе" : "")
+        .help(disabled ? tr("Будет во второй фазе", "Coming later") : "")
     }
 }
 
@@ -263,8 +263,8 @@ struct BriefSheet: View {
     var body: some View {
         let signal = app.signals.first { $0.id == signalId }
         VStack(alignment: .leading, spacing: 16) {
-            Text("Бриф для агента · \(signal.map { app.projectName($0.projectId) } ?? "")").uiFont(18, .semibold)
-            Text("Заполните цель и критерий готовности — агенту станет понятно, когда остановиться.").uiFont(13, color: Theme.text2)
+            Text(tr("Бриф для агента · \(signal.map { app.projectName($0.projectId) } ?? "")", "Agent brief · \(signal.map { app.projectName($0.projectId) } ?? "")")).uiFont(18, .semibold)
+            Text(tr("Заполните цель и критерий готовности — агенту станет понятно, когда остановиться.", "Fill in the goal and the definition of done — so the agent knows when to stop.")).uiFont(13, color: Theme.text2)
             TextEditor(text: $text)
                 .font(OrbitFont.mono(12.5))
                 .scrollContentBackground(.hidden)
@@ -273,13 +273,13 @@ struct BriefSheet: View {
                 .background(Theme.bg, in: RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.border))
             HStack {
-                OrbitButton("Скопировать", icon: "doc.on.doc") {
+                OrbitButton(tr("Скопировать", "Copy"), icon: "doc.on.doc") {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(text, forType: .string)
-                    app.toast = "Бриф скопирован"
+                    app.toast = tr("Бриф скопирован", "Brief copied")
                 }
                 if app.config.ai.isEnabled {
-                    OrbitButton(generating ? "Пишу…" : "Составить с ИИ", icon: "sparkles") {
+                    OrbitButton(generating ? tr("Пишу…", "Writing…") : tr("Составить с ИИ", "Write with AI"), icon: "sparkles") {
                         generating = true
                         Task {
                             do { text = try await app.aiBrief(signalId) } catch { app.toast = error.localizedDescription }
@@ -289,8 +289,8 @@ struct BriefSheet: View {
                     .disabled(generating)
                 }
                 Spacer()
-                OrbitButton("Отмена") { dismiss() }
-                OrbitButton("Запустить в Claude Code", icon: "play", kind: .primary) {
+                OrbitButton(tr("Отмена", "Cancel")) { dismiss() }
+                OrbitButton(tr("Запустить в Claude Code", "Run in Claude Code"), icon: "play", kind: .primary) {
                     if let pid = signal?.projectId { app.runAgent(pid, prompt: text) }
                     dismiss()
                 }
@@ -309,25 +309,25 @@ struct BriefSheet: View {
         for s in recent { for f in s.filesTouched { files.insert(SessionAnalyzer.relative(f, session: s)) } }
         let task = recent.first?.firstPrompt ?? ""
         var lines = [
-            "## Задача",
-            task.isEmpty ? "<опишите, что нужно сделать>" : String(task.prefix(400)),
+            tr("## Задача", "## Task"),
+            task.isEmpty ? tr("<опишите, что нужно сделать>", "<describe what needs to be done>") : String(task.prefix(400)),
             "",
-            "## Контекст",
-            "Прошлые \(Plural.sessions(recent.count)) не довели задачу до коммита: правки откатывались.",
+            tr("## Контекст", "## Context"),
+            tr("Прошлые \(Plural.sessions(recent.count)) не довели задачу до коммита: правки откатывались.", "The last \(Plural.sessions(recent.count)) didn’t get the task to a commit: edits kept being reverted."),
         ]
         if let stuck = recent.first.flatMap(InsightEngine.stuck) { lines.append(stuck) }
         if !files.isEmpty {
-            lines += ["", "## Файлы", files.sorted().prefix(10).map { "- \($0)" }.joined(separator: "\n")]
+            lines += ["", tr("## Файлы", "## Files"), files.sorted().prefix(10).map { "- \($0)" }.joined(separator: "\n")]
         }
         lines += [
             "",
-            "## Критерий готовности",
-            "- <что должно работать>",
-            "- тесты зелёные, изменения закоммичены",
+            tr("## Критерий готовности", "## Definition of done"),
+            tr("- <что должно работать>", "- <what should work>"),
+            tr("- тесты зелёные, изменения закоммичены", "- tests are green, changes are committed"),
             "",
-            "## Ограничения",
-            "- не откатывай чужие изменения без вопроса",
-            "- если два подхода не сработали — остановись и опиши, что мешает",
+            tr("## Ограничения", "## Constraints"),
+            tr("- не откатывай чужие изменения без вопроса", "- don’t revert other people’s changes without asking"),
+            tr("- если два подхода не сработали — остановись и опиши, что мешает", "- if two approaches fail, stop and describe what’s blocking you"),
         ]
         return lines.joined(separator: "\n")
     }

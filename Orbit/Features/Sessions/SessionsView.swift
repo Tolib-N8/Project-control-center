@@ -11,17 +11,17 @@ struct SessionsView: View {
         let list = filtered
         let hours = list.reduce(0) { $0 + $1.activeSeconds } / 3600
         VStack(alignment: .leading, spacing: 28) {
-            PageHeader(eyebrow: "\(Plural.sessions(list.count)) за \(period) дней · \(Duration.hours(hours)) ч работы агентов", title: "Сессии агентов") {
-                filterMenu(icon: "folder", title: app.sessionFilterProject.map { app.projectName($0) } ?? "Все проекты") {
-                    Button("Все проекты") { app.sessionFilterProject = nil }
+            PageHeader(eyebrow: tr("\(Plural.sessions(list.count)) за \(period) дней · \(Duration.hours(hours)) ч работы агентов", "\(Plural.sessions(list.count)) in \(period) days · \(Duration.hours(hours)) h of agent work"), title: tr("Сессии агентов", "Agent sessions")) {
+                filterMenu(icon: "folder", title: app.sessionFilterProject.map { app.projectName($0) } ?? tr("Все проекты", "All projects")) {
+                    Button(tr("Все проекты", "All projects")) { app.sessionFilterProject = nil }
                     ForEach(app.config.activeProjects) { p in Button(p.name) { app.sessionFilterProject = p.id } }
                 }
-                filterMenu(icon: "cpu", title: agent?.title ?? "Все агенты") {
-                    Button("Все агенты") { agent = nil }
+                filterMenu(icon: "cpu", title: agent?.title ?? tr("Все агенты", "All agents")) {
+                    Button(tr("Все агенты", "All agents")) { agent = nil }
                     ForEach(AgentKind.allCases) { a in Button(a.title) { agent = a } }
                 }
-                filterMenu(icon: "calendar", title: "\(period) дней") {
-                    ForEach([7, 30, 90], id: \.self) { d in Button("\(d) дней") { period = d } }
+                filterMenu(icon: "calendar", title: tr("\(period) дней", "\(period) days")) {
+                    ForEach([7, 30, 90], id: \.self) { d in Button(tr("\(d) дней", "\(d) days")) { period = d } }
                 }
             }
 
@@ -43,7 +43,7 @@ struct SessionsView: View {
                                                                   removal: .opacity.animation(.easeOut(duration: 0.08)))))
                         .appearStagger(3)
                 } else {
-                    EmptyHint(symbol: "cpu", title: "Сессий нет", text: "За выбранный период агенты не работали в подключённых проектах.")
+                    EmptyHint(symbol: "cpu", title: tr("Сессий нет", "No sessions"), text: tr("За выбранный период агенты не работали в подключённых проектах.", "No agent activity in your projects for this period."))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .cardStyle()
                 }
@@ -96,8 +96,8 @@ struct SessionsView: View {
 
     private func dayTitle(_ d: Date) -> String {
         let cal = Week.calendar
-        if cal.isDateInToday(d) { return "Сегодня" }
-        if cal.isDateInYesterday(d) { return "Вчера" }
+        if cal.isDateInToday(d) { return tr("Сегодня", "Today") }
+        if cal.isDateInYesterday(d) { return tr("Вчера", "Yesterday") }
         return DateFormat.weekdayShort(d)
     }
 
@@ -152,17 +152,17 @@ struct AgentStatsCard: View {
                 }
                 HStack(alignment: .firstTextBaseline) {
                     Text("\(sessions.count)").font(OrbitFont.ui(30, .semibold)).numericTransition(sessions.count)
-                    Text(Plural.ru(sessions.count, "сессия", "сессии", "сессий")).uiFont(14, color: Theme.text2)
+                    Text(pluralWord(sessions.count, ru: ("сессия", "сессии", "сессий"), en: ("session", "sessions"))).uiFont(14, color: Theme.text2)
                     Spacer()
                     if !sessions.isEmpty {
-                        Text("\(rate)% успешных").uiFont(14, .medium, color: rate >= 70 ? Theme.green : rate >= 50 ? Theme.yellow : Theme.red).numericTransition(rate)
+                        Text(tr("\(rate)% успешных", "\(rate)% successful")).uiFont(14, .medium, color: rate >= 70 ? Theme.green : rate >= 50 ? Theme.yellow : Theme.red).numericTransition(rate)
                     }
                 }
                 SegmentBar(segments: sessions.isEmpty ? [(1, Theme.border)] : [(Double(done), Theme.green), (Double(stuck), Theme.yellow), (Double(rolled), Theme.red)])
                 HStack(spacing: 18) {
-                    Text("\(done) готово")
-                    Text("\(stuck) застрял")
-                    Text("\(rolled) откат")
+                    Text(tr("\(done) готово", "\(done) done"))
+                    Text(tr("\(stuck) застрял", "\(stuck) stuck"))
+                    Text(tr("\(rolled) откат", "\(rolled) rolled back"))
                 }
                 .uiFont(12.5, color: Theme.text3)
             }
@@ -196,7 +196,7 @@ struct SessionDetail: View {
             HStack(alignment: .top, spacing: 0) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
-                        section("checkmark.circle", "Что сделано", Theme.green) {
+                        section("checkmark.circle", tr("Что сделано", "What got done"), Theme.green) {
                             VStack(alignment: .leading, spacing: 8) {
                                 ForEach(Array((ai?.done.isEmpty == false ? ai!.done : InsightEngine.doneBullets(s)).enumerated()), id: \.offset) { _, b in
                                     Text("— " + b).uiFont(13.5).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
@@ -204,7 +204,7 @@ struct SessionDetail: View {
                             }
                         }
                         if let stuck = ai.map({ $0.stuck.isEmpty ? nil : $0.stuck }) ?? InsightEngine.stuck(s) {
-                            section("exclamationmark.triangle", "Где застрял", Theme.yellow) {
+                            section("exclamationmark.triangle", tr("Где застрял", "Where it got stuck"), Theme.yellow) {
                                 Text(stuck).uiFont(13.5).lineSpacing(5).fixedSize(horizontal: false, vertical: true)
                                     .padding(18)
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -212,31 +212,31 @@ struct SessionDetail: View {
                                     .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.yellow.opacity(0.35)))
                             }
                         }
-                        section("sparkles", ai != nil ? "Рекомендация ИИ" : "Рекомендация", Theme.accent) {
+                        section("sparkles", ai != nil ? tr("Рекомендация ИИ", "AI recommendation") : tr("Рекомендация", "Recommendation"), Theme.accent) {
                             Text(ai.map { $0.recommendation.isEmpty ? InsightEngine.recommendation(s) : $0.recommendation } ?? InsightEngine.recommendation(s)).uiFont(13.5).lineSpacing(5).fixedSize(horizontal: false, vertical: true)
                         }
                         if !s.firstPrompt.isEmpty {
-                            section("text.bubble", "Задача", Theme.text2) {
+                            section("text.bubble", tr("Задача", "Task"), Theme.text2) {
                                 Text(s.firstPrompt).uiFont(13, color: Theme.text2).lineSpacing(4).lineLimit(6)
                             }
                         }
                         FlowLayout(spacing: 10) {
                             if s.agent == .claude || s.agent == .codex {
-                                OrbitButton("Продолжить с контекстом", icon: "play", kind: .primary) { app.resume(s) }
+                                OrbitButton(tr("Продолжить с контекстом", "Continue with context"), icon: "play", kind: .primary) { app.resume(s) }
                             }
                             if s.agent == .claude {
-                                OrbitButton("Транскрипт", icon: "scroll") { app.sheet = .transcript(sessionId: s.id) }
+                                OrbitButton(tr("Транскрипт", "Transcript"), icon: "scroll") { app.sheet = .transcript(sessionId: s.id) }
                             }
-                            OrbitButton("Лог", icon: "doc.text.magnifyingglass") { Shell.reveal(s.logPath.components(separatedBy: "#").first ?? s.logPath) }
+                            OrbitButton(tr("Лог", "Log"), icon: "doc.text.magnifyingglass") { Shell.reveal(s.logPath.components(separatedBy: "#").first ?? s.logPath) }
                             if app.config.ai.isEnabled {
-                                OrbitButton(busy ? "ИИ разбирает…" : (ai == nil ? "Разобрать с ИИ" : "Обновить разбор"), icon: "sparkles") {
+                                OrbitButton(busy ? tr("ИИ разбирает…", "AI is reviewing…") : (ai == nil ? tr("Разобрать с ИИ", "Review with AI") : tr("Обновить разбор", "Refresh review")), icon: "sparkles") {
                                     app.analyzeSession(s, force: true)
                                 }
                                 .disabled(busy)
                             }
                         }
                         if let ai {
-                            Text("Разбор: \(ai.source) · \(DateFormat.relativeDay(ai.createdAt))").uiFont(11.5, color: Theme.text3)
+                            Text(tr("Разбор: \(ai.source) · \(DateFormat.relativeDay(ai.createdAt))", "Review: \(ai.source) · \(DateFormat.relativeDay(ai.createdAt))")).uiFont(11.5, color: Theme.text3)
                         }
                     }
                     .padding(20)
@@ -248,15 +248,15 @@ struct SessionDetail: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        metric("Длительность", Duration.text(minutes: s.durationMinutes))
-                        metric("Токены", s.tokens > 0 ? NumberText.compact(s.tokens) : "—")
-                        metric("Файлов изменено", "\(s.filesTouched.count)")
-                        metric("Строк", "+\(s.linesAdded) −\(s.linesRemoved)")
+                        metric(tr("Длительность", "Duration"), Duration.text(minutes: s.durationMinutes))
+                        metric(tr("Токены", "Tokens"), s.tokens > 0 ? NumberText.compact(s.tokens) : "—")
+                        metric(tr("Файлов изменено", "Files changed"), "\(s.filesTouched.count)")
+                        metric(tr("Строк", "Lines"), "+\(s.linesAdded) −\(s.linesRemoved)")
                         testsMetric(s)
-                        metric("Коммит", s.commitsInWindow.isEmpty ? "не создан" : "\(s.commitsInWindow.count) · \(String(s.commitsInWindow[0].prefix(7)))",
+                        metric(tr("Коммит", "Commit"), s.commitsInWindow.isEmpty ? tr("не создан", "none") : "\(s.commitsInWindow.count) · \(String(s.commitsInWindow[0].prefix(7)))",
                                color: s.commitsInWindow.isEmpty ? Theme.yellow : Theme.green)
                         Rectangle().fill(Theme.border).frame(height: 1).padding(.vertical, 6)
-                        Text("Ход сессии").uiFont(13, .semibold, color: Theme.text2)
+                        Text(tr("Ход сессии", "Session timeline")).uiFont(13, .semibold, color: Theme.text2)
                         ForEach(InsightEngine.timeline(s)) { item in
                             HStack(alignment: .top, spacing: 12) {
                                 Text(DateFormat.time.string(from: item.time)).monoFont(11.5, color: Theme.text3).frame(width: 40, alignment: .leading)
@@ -309,12 +309,12 @@ struct SessionDetail: View {
     @ViewBuilder
     private func testsMetric(_ s: AgentSession) -> some View {
         if s.testsPassed == nil && s.testsFailed == nil {
-            metric("Тесты", "не запускались", color: Theme.text3)
+            metric(tr("Тесты", "Tests"), tr("не запускались", "not run"), color: Theme.text3)
         } else {
             HStack {
-                Text("Тесты").uiFont(13, color: Theme.text2)
+                Text(tr("Тесты", "Tests")).uiFont(13, color: Theme.text2)
                 Spacer()
-                Text(s.testsPassed.map { "\($0) ✓" } ?? ((s.testsFailed ?? 0) > 0 ? "" : "прошли ✓")).monoFont(12.5, color: (s.testsFailed ?? 0) > 0 ? Theme.red : Theme.green)
+                Text(s.testsPassed.map { "\($0) ✓" } ?? ((s.testsFailed ?? 0) > 0 ? "" : tr("прошли ✓", "passed ✓"))).monoFont(12.5, color: (s.testsFailed ?? 0) > 0 ? Theme.red : Theme.green)
                 if let f = s.testsFailed, f > 0 { Text("· \(f) ✗").monoFont(12.5, color: Theme.red) }
             }
         }
@@ -332,9 +332,9 @@ struct TranscriptSheet: View {
         let s = app.sessions.first { $0.id == sessionId }
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text(s?.title ?? "Транскрипт").uiFont(16, .semibold).lineLimit(1)
+                Text(s?.title ?? tr("Транскрипт", "Transcript")).uiFont(16, .semibold).lineLimit(1)
                 Spacer()
-                OrbitButton("Закрыть") { dismiss() }
+                OrbitButton(tr("Закрыть", "Close")) { dismiss() }
             }
             .padding(20).hairline()
             if loading {
@@ -344,7 +344,7 @@ struct TranscriptSheet: View {
                     LazyVStack(alignment: .leading, spacing: 14) {
                         ForEach(entries) { e in
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("\(DateFormat.time.string(from: e.time)) · \(e.role == "user" ? "Вы" : e.role == "tool" ? "Инструмент" : "Агент")")
+                                Text(tr("\(DateFormat.time.string(from: e.time)) · \(e.role == "user" ? "Вы" : e.role == "tool" ? "Инструмент" : "Агент")", "\(DateFormat.time.string(from: e.time)) · \(e.role == "user" ? "You" : e.role == "tool" ? "Tool" : "Agent")"))
                                     .monoFont(11, color: e.role == "user" ? Theme.accent : Theme.text3)
                                 Text(e.text).font(e.role == "tool" ? OrbitFont.mono(12) : OrbitFont.ui(13))
                                     .foregroundStyle(e.role == "tool" ? Theme.text2 : Theme.text)

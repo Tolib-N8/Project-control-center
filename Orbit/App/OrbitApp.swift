@@ -26,21 +26,22 @@ struct OrbitApp: App {
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1440, height: 1000)
         .commands {
+            let _ = app.languageRevision
             CommandGroup(after: .appInfo) {
-                Button("Проверить обновления…") { Task { await app.checkForUpdates(manual: true) } }
+                Button(tr("Проверить обновления…", "Check for Updates…")) { Task { await app.checkForUpdates(manual: true) } }
             }
             CommandGroup(after: .newItem) {
-                Button("Обновить данные") { Task { await app.refresh() } }
+                Button(tr("Обновить данные", "Refresh Data")) { Task { await app.refresh() } }
                     .keyboardShortcut("r")
-                Button("Запланировать неделю") { app.sheet = .planner(weekKey: app.currentWeekKey) }
+                Button(tr("Запланировать неделю", "Plan the Week")) { app.sheet = .planner(weekKey: app.currentWeekKey) }
                     .keyboardShortcut("p", modifiers: [.command, .shift])
             }
-            CommandMenu("Перейти") {
-                Button("Неделя") { app.screen = .week }.keyboardShortcut("1")
-                Button("Проекты") { app.screen = .projects }.keyboardShortcut("2")
-                Button("Сессии агентов") { app.screen = .sessions }.keyboardShortcut("3")
+            CommandMenu(tr("Перейти", "Go")) {
+                Button(tr("Неделя", "Week")) { app.screen = .week }.keyboardShortcut("1")
+                Button(tr("Проекты", "Projects")) { app.screen = .projects }.keyboardShortcut("2")
+                Button(tr("Сессии агентов", "Agent Sessions")) { app.screen = .sessions }.keyboardShortcut("3")
                 Button("Git") { app.screen = .git }.keyboardShortcut("4")
-                Button("Сигналы") { app.screen = .signals }.keyboardShortcut("5")
+                Button(tr("Сигналы", "Signals")) { app.screen = .signals }.keyboardShortcut("5")
             }
         }
 
@@ -61,21 +62,22 @@ struct MenuBarContent: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
+        let _ = app.languageRevision
         if let focus = app.todayFocus {
-            Text("Сегодня: \(app.projectName(focus.projectId)) · \(Duration.hours(focus.hours)) ч")
+            Text(tr("Сегодня: \(app.projectName(focus.projectId)) · \(Duration.hours(focus.hours)) ч", "Today: \(app.projectName(focus.projectId)) · \(Duration.hours(focus.hours)) h"))
         } else {
-            Text("На сегодня ничего не запланировано")
+            Text(tr("На сегодня ничего не запланировано", "Nothing planned for today"))
         }
-        Text("Сигналов: \(app.activeSignals.count)")
+        Text(tr("Сигналов: \(app.activeSignals.count)", "Signals: \(app.activeSignals.count)"))
         Divider()
-        Button("Открыть Orbit") {
+        Button(tr("Открыть Orbit", "Open Orbit")) {
             openWindow(id: "main")
             NSApp.activate(ignoringOtherApps: true)
         }
-        Button("Обновить") { Task { await app.refresh() } }
+        Button(tr("Обновить", "Refresh")) { Task { await app.refresh() } }
         Divider()
         Text("Orbit \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
-        Button("Выйти") { NSApp.terminate(nil) }
+        Button(tr("Выйти", "Quit")) { NSApp.terminate(nil) }
     }
 }
 
@@ -88,7 +90,8 @@ struct RootView: View {
         ZStack {
             Group {
                 if app.config.onboarded {
-                    MainView()
+                    // Rebuilt on a language switch so every screen picks up the new strings.
+                    MainView().id(app.languageRevision)
                 } else {
                     OnboardingView()
                 }

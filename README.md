@@ -11,7 +11,7 @@ Your projects, your AI agents and your week — in one orbit.
 ![Platform](https://img.shields.io/badge/macOS-15%2B-ECEDEF?style=flat-square&logo=apple&logoColor=white&labelColor=15171A)
 ![Swift](https://img.shields.io/badge/SwiftUI-native-F59E5B?style=flat-square&logo=swift&logoColor=white&labelColor=15171A)
 ![Local first](https://img.shields.io/badge/data-stays%20local-5AD48A?style=flat-square&labelColor=15171A)
-![Language](https://img.shields.io/badge/UI-Russian%20·%20English%20soon-9D8CFF?style=flat-square&labelColor=15171A)
+![Language](https://img.shields.io/badge/UI-English%20·%20Russian-9D8CFF?style=flat-square&labelColor=15171A)
 
 [**Download for macOS**](https://github.com/Tolib-N8/Project-control-center/releases/latest) · [Changelog](CHANGELOG.md) · [Roadmap](#roadmap)
 
@@ -22,7 +22,7 @@ Your projects, your AI agents and your week — in one orbit.
 </div>
 
 > [!NOTE]
-> **English is coming soon.** Orbit's interface is currently in Russian (the screenshots too). A full English localization is the next item on the [roadmap](#roadmap) — this README is already in English so you know what you're getting.
+> **Orbit speaks English and Russian.** It follows your macOS language and can be switched any time in **Settings → General → Language** or on the welcome screen — live, no restart. AI conclusions are written in the language you pick. Screenshots below are from the Russian interface.
 
 ---
 
@@ -247,7 +247,7 @@ Each release ships two files: the styled **`.dmg`** for people (built by `script
 - [x] **0.4** — launch animation
 - [x] **0.5** — self-updates and one-command releases
 - [x] **0.6** — welcome screen, drag-to-install `.dmg`
-- [ ] **English interface** — full localization, Russian stays available *(coming next)*
+- [x] **0.7** — English interface, live language switching
 - [ ] GitHub: open pull requests and CI status via `gh`
 - [ ] Notifications in Telegram and by email
 - [ ] Cursor chat history

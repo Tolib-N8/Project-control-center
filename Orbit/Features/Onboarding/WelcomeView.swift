@@ -5,6 +5,7 @@ import SwiftUI
 struct WelcomeView: View {
     var onContinue: () -> Void
 
+    @Environment(AppState.self) private var app
     @Environment(\.logoNamespace) private var namespace
     @State private var title = false
     @State private var tagline = false
@@ -12,6 +13,7 @@ struct WelcomeView: View {
     @State private var actions = false
 
     var body: some View {
+        let _ = app.languageRevision
         VStack(spacing: 0) {
             Spacer()
             logo
@@ -25,9 +27,9 @@ struct WelcomeView: View {
                 .padding(.bottom, 14)
 
             VStack(spacing: 6) {
-                Text("Вайбкодинг без хаоса.")
+                Text(tr("Вайбкодинг без хаоса.", "Vibe coding without the chaos."))
                     .uiFont(17, .medium)
-                Text("Проекты, агенты и неделя — на одной орбите.")
+                Text(tr("Проекты, агенты и неделя — на одной орбите.", "Your projects, agents and week — in one orbit."))
                     .uiFont(15, color: Theme.text2)
             }
             .multilineTextAlignment(.center)
@@ -36,7 +38,7 @@ struct WelcomeView: View {
 
             HStack(spacing: 10) {
                 Rectangle().fill(Theme.accent.opacity(0.35)).frame(width: 18, height: 1)
-                Text("от вайбкодера к вайбкодерам")
+                Text(tr("от вайбкодера к вайбкодерам", "by a vibe coder, for vibe coders"))
                     .monoFont(12.5, color: Theme.accent.opacity(0.75))
                 Rectangle().fill(Theme.accent.opacity(0.35)).frame(width: 18, height: 1)
             }
@@ -44,16 +46,41 @@ struct WelcomeView: View {
             .padding(.bottom, 44)
 
             VStack(spacing: 10) {
-                OrbitButton("Начать", icon: "arrow.right", kind: .primary, action: onContinue)
+                OrbitButton(tr("Начать", "Get started"), icon: "arrow.right", kind: .primary, action: onContinue)
                     .keyboardShortcut(.defaultAction)
-                Text("3 шага · около минуты").uiFont(12, color: Theme.text3)
+                Text(tr("3 шага · около минуты", "3 steps · about a minute")).uiFont(12, color: Theme.text3)
             }
             .reveal(actions)
             Spacer()
             Spacer()
+            languageSwitch
+                .reveal(actions)
+                .padding(.bottom, 28)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.bg)
+    }
+
+    /// "English · Русский": picking the system language keeps following the system.
+    private var languageSwitch: some View {
+        HStack(spacing: 4) {
+            ForEach([Lang.en, Lang.ru], id: \.self) { lang in
+                let selected = L10n.current == lang
+                Button {
+                    withMotion(Motion.content) { app.setLanguage(lang == Lang.system ? .system : lang == .ru ? .ru : .en) }
+                } label: {
+                    Text(lang == .ru ? "Русский" : "English")
+                        .uiFont(12, selected ? .medium : .regular, color: selected ? Theme.text : Theme.text3)
+                        .padding(.vertical, 5)
+                        .padding(.horizontal, 10)
+                        .background(selected ? Theme.surface2 : .clear, in: RoundedRectangle(cornerRadius: 6))
+                        .hoverHighlight(.row, radius: 6)
+                }
+                .buttonStyle(PlainButtonStyle2())
+            }
+        }
+        .padding(3)
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.border))
     }
 
     @ViewBuilder

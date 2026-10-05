@@ -22,9 +22,9 @@ struct UpdateSheet: View {
                 .hairline(.top)
                 footer(release)
             } else {
-                EmptyHint(symbol: "checkmark.seal", title: "Установлена последняя версия", text: "Orbit \(Updater.currentVersion)")
+                EmptyHint(symbol: "checkmark.seal", title: tr("Установлена последняя версия", "You have the latest version"), text: "Orbit \(Updater.currentVersion)")
                     .padding(24)
-                HStack { Spacer(); OrbitButton("Закрыть") { dismiss() } }.padding(20)
+                HStack { Spacer(); OrbitButton(tr("Закрыть", "Close")) { dismiss() } }.padding(20)
             }
         }
         .frame(width: 560)
@@ -36,7 +36,7 @@ struct UpdateSheet: View {
             LogoMark(size: 44)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Orbit \(release.version)").uiFont(20, .semibold)
-                Text("У вас \(Updater.currentVersion) · \(ByteCountFormatter.string(fromByteCount: Int64(release.size), countStyle: .file))")
+                Text(tr("У вас \(Updater.currentVersion) · \(ByteCountFormatter.string(fromByteCount: Int64(release.size), countStyle: .file))", "You have \(Updater.currentVersion) · \(ByteCountFormatter.string(fromByteCount: Int64(release.size), countStyle: .file))"))
                     .uiFont(12.5, color: Theme.text2)
             }
             Spacer()
@@ -44,7 +44,7 @@ struct UpdateSheet: View {
                 Link(destination: page) {
                     Image(systemName: "arrow.up.right.square").foregroundStyle(Theme.text3)
                 }
-                .help("Открыть релиз на GitHub")
+                .help(tr("Открыть релиз на GitHub", "Open the release on GitHub"))
             }
         }
         .padding(24)
@@ -59,9 +59,9 @@ struct UpdateSheet: View {
                     ProgressLine(fraction: p, height: 6)
                     Text("\(Int(p * 100))%").monoFont(12, color: Theme.text2).numericTransition(Int(p * 100))
                 }
-                Text("Скачиваю и проверяю…").uiFont(12.5, color: Theme.text2)
+                Text(tr("Скачиваю и проверяю…", "Downloading and verifying…")).uiFont(12.5, color: Theme.text2)
             case .installing:
-                Text("Устанавливаю — Orbit перезапустится через секунду…").uiFont(12.5, color: Theme.text2)
+                Text(tr("Устанавливаю — Orbit перезапустится через секунду…", "Installing — Orbit will relaunch in a second…")).uiFont(12.5, color: Theme.text2)
             case .failed(let message):
                 Label(message, systemImage: "exclamationmark.triangle").uiFont(12.5, color: Theme.yellow)
             default:
@@ -71,11 +71,11 @@ struct UpdateSheet: View {
                 Label(blocker, systemImage: "folder.badge.questionmark").uiFont(12.5, color: Theme.yellow)
             }
             HStack(spacing: 10) {
-                Button("Пропустить эту версию") { app.skipUpdate() }
+                Button(tr("Пропустить эту версию", "Skip this version")) { app.skipUpdate() }
                     .buttonStyle(PlainButtonStyle2()).font(OrbitFont.ui(12.5)).foregroundStyle(Theme.text3)
                 Spacer()
-                OrbitButton("Позже") { dismiss() }
-                OrbitButton(busy ? "Обновляю…" : "Установить и перезапустить", icon: "arrow.down.circle", kind: .primary) {
+                OrbitButton(tr("Позже", "Later")) { dismiss() }
+                OrbitButton(busy ? tr("Обновляю…", "Updating…") : tr("Установить и перезапустить", "Install and relaunch"), icon: "arrow.down.circle", kind: .primary) {
                     app.installUpdate()
                 }
                 .disabled(busy || Updater.installBlocker != nil)
@@ -96,7 +96,9 @@ struct UpdateSheet: View {
 
     private func notes(_ release: ReleaseInfo) -> AttributedString {
         // Drop the install instructions: the user is installing from inside the app.
-        let text = release.notes.components(separatedBy: "\n## Установка").first ?? release.notes
+        let text = ["\n## Установка", "\n## Install"].reduce(release.notes) { notes, marker in
+            notes.components(separatedBy: marker).first ?? notes
+        }
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         let cleaned = text.replacingOccurrences(of: "### ", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
         return (try? AttributedString(markdown: cleaned, options: options)) ?? AttributedString(cleaned)
@@ -113,7 +115,7 @@ struct UpdateBanner: View {
             HStack(spacing: 10) {
                 Image(systemName: "arrow.down.circle.fill").font(.system(size: 14)).foregroundStyle(Theme.accent)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Доступна версия \(release.version)").uiFont(12, .medium)
+                    Text(tr("Доступна версия \(release.version)", "Version \(release.version) is available")).uiFont(12, .medium)
                     Text(progressText).uiFont(11.5, color: Theme.text3).contentTransition(.opacity)
                 }
                 Spacer(minLength: 0)
@@ -128,10 +130,10 @@ struct UpdateBanner: View {
 
     private var progressText: String {
         switch app.updatePhase {
-        case .downloading(let p): "Загрузка · \(Int(p * 100))%"
-        case .installing: "Перезапуск…"
-        case .failed: "Ошибка — нажмите, чтобы повторить"
-        default: "Нажмите, чтобы обновить"
+        case .downloading(let p): tr("Загрузка · \(Int(p * 100))%", "Downloading · \(Int(p * 100))%")
+        case .installing: tr("Перезапуск…", "Relaunching…")
+        case .failed: tr("Ошибка — нажмите, чтобы повторить", "Error — click to retry")
+        default: tr("Нажмите, чтобы обновить", "Click to update")
         }
     }
 }

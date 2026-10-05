@@ -1,12 +1,20 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @Environment(AppState.self) private var app
+    @State private var tab = "ai"
+
     var body: some View {
-        TabView {
+        // Tab contents are rebuilt when the language changes; the selected tab survives.
+        TabView(selection: $tab) {
             AISettingsView()
-                .tabItem { Label("Анализ", systemImage: "sparkles") }
+                .id(app.languageRevision)
+                .tabItem { Label(tr("Анализ", "Analysis"), systemImage: "sparkles") }
+                .tag("ai")
             GeneralSettingsView()
-                .tabItem { Label("Общие", systemImage: "gearshape") }
+                .id(app.languageRevision)
+                .tabItem { Label(tr("Общие", "General"), systemImage: "gearshape") }
+                .tag("general")
         }
         .frame(width: 680, height: 720)
         .preferredColorScheme(.dark)
@@ -20,12 +28,14 @@ struct AISettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Чем анализировать проекты").uiFont(18, .semibold)
-                    Text("Модель пишет выводы по сессиям, следующие шаги, цель дня, разбор сессий, сообщения коммитов и брифы для агентов. Без модели работают локальные эвристики.")
+                    Text(tr("Чем анализировать проекты", "How to analyze projects")).uiFont(18, .semibold)
+                    Text(tr("Модель пишет выводы по сессиям, следующие шаги, цель дня, разбор сессий, сообщения коммитов и брифы для агентов. Без модели работают локальные эвристики.", "The model writes session summaries, next steps, the goal for the day, session reviews, commit messages and agent briefs. Without a model, local heuristics do the job."))
                         .uiFont(13, color: Theme.text2).fixedSize(horizontal: false, vertical: true)
                 }
                 ProviderPicker()
-                ProviderDetails()
+                if app.config.ai.provider != .heuristics {
+                    ProviderDetails()
+                }
                 privacy
             }
             .padding(24)
@@ -36,7 +46,7 @@ struct AISettingsView: View {
     private var privacy: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "lock").foregroundStyle(Theme.text3)
-            Text("В модель уходят только сводки: названия файлов и веток, заголовки и итоговые сообщения сессий агентов, сообщения коммитов, ошибки тестов. Исходный код не отправляется — кроме диффа для сообщений коммитов, если это включено. Ключи API хранятся в связке ключей macOS.")
+            Text(tr("В модель уходят только сводки: названия файлов и веток, заголовки и итоговые сообщения сессий агентов, сообщения коммитов, ошибки тестов. Исходный код не отправляется — кроме диффа для сообщений коммитов, если это включено. Ключи API хранятся в связке ключей macOS.", "Only summaries go to the model: file and branch names, agent session titles and final messages, commit messages, test errors. Source code is never sent — except the diff for commit messages, if you turn that on. API keys are stored in the macOS Keychain."))
                 .uiFont(12, color: Theme.text3).fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -108,15 +118,15 @@ struct ProviderDetails: View {
         let kind = app.config.ai.provider
         VStack(alignment: .leading, spacing: 16) {
             if kind.usesModel {
-                row("Модель") {
+                row(tr("Модель", "Model")) {
                     HStack(spacing: 8) {
-                        TextField(kind.defaultModel.isEmpty ? "по умолчанию" : kind.defaultModel,
+                        TextField(kind.defaultModel.isEmpty ? tr("по умолчанию", "default") : kind.defaultModel,
                                   text: Binding(get: { app.config.ai.models[kind.rawValue] ?? "" },
                                                 set: { app.config.ai.models[kind.rawValue] = $0; app.saveConfig() }))
                             .textFieldStyle(.roundedBorder)
                         let suggestions = kind == .ollama ? ollamaModels : kind.modelSuggestions
                         if !suggestions.isEmpty {
-                            MenuChip(title: "Выбрать") {
+                            MenuChip(title: tr("Выбрать", "Choose")) {
                                 ForEach(suggestions, id: \.self) { m in
                                     Button(m) { app.config.ai.models[kind.rawValue] = m; app.saveConfig() }
                                 }
@@ -126,19 +136,19 @@ struct ProviderDetails: View {
                 }
             }
             if kind == .claudeCode || kind == .anthropicAPI {
-                row("Глубина анализа") {
-                    SegmentedTabs(items: [("low", "Быстро"), ("medium", "Обычно"), ("high", "Тщательно")],
+                row(tr("Глубина анализа", "Analysis depth")) {
+                    SegmentedTabs(items: [("low", tr("Быстро", "Fast")), ("medium", tr("Обычно", "Normal")), ("high", tr("Тщательно", "Thorough"))],
                                   selection: Binding(get: { app.config.ai.effort }, set: { app.config.ai.effort = $0; app.saveConfig() }))
                 }
             }
             if kind == .claudeCode {
-                hint("Используется аккаунт, в который выполнен вход в Claude Code (`claude` в терминале). Запросы расходуют лимиты подписки; Orbit повторяет анализ проекта не чаще, чем раз в \(Int(app.config.ai.minHoursBetweenRuns)) ч, и только если что-то изменилось.")
+                hint(tr("Используется аккаунт, в который выполнен вход в Claude Code (`claude` в терминале). Запросы расходуют лимиты подписки; Orbit повторяет анализ проекта не чаще, чем раз в \(Int(app.config.ai.minHoursBetweenRuns)) ч, и только если что-то изменилось.", "Uses the account you’re signed in to in Claude Code (`claude` in the terminal). Requests use your subscription limits; Orbit re-analyzes a project at most every \(Int(app.config.ai.minHoursBetweenRuns)) h, and only if something changed."))
             }
             if kind == .codexCLI {
-                hint("Используется аккаунт Codex CLI (`codex login`). Модель по умолчанию — из ~/.codex/config.toml.")
+                hint(tr("Используется аккаунт Codex CLI (`codex login`). Модель по умолчанию — из ~/.codex/config.toml.", "Uses your Codex CLI account (`codex login`). The default model comes from ~/.codex/config.toml."))
             }
             if kind == .ollama {
-                row("Адрес") {
+                row(tr("Адрес", "Address")) {
                     TextField("http://localhost:11434", text: Binding(get: { app.config.ai.ollamaURL }, set: { app.config.ai.ollamaURL = $0; app.saveConfig() }))
                         .textFieldStyle(.roundedBorder)
                 }
@@ -150,14 +160,14 @@ struct ProviderDetails: View {
                 }
             }
             if kind.needsKey {
-                row("API-ключ") {
+                row(tr("API-ключ", "API key")) {
                     HStack(spacing: 8) {
-                        SecureField(Keychain.get(account(kind)) == nil ? "вставьте ключ" : "сохранён — введите новый, чтобы заменить", text: $key)
+                        SecureField(Keychain.get(account(kind)) == nil ? tr("вставьте ключ", "paste the key") : tr("сохранён — введите новый, чтобы заменить", "saved — enter a new one to replace it"), text: $key)
                             .textFieldStyle(.roundedBorder)
-                        OrbitButton("Сохранить", compact: true) {
+                        OrbitButton(tr("Сохранить", "Save"), compact: true) {
                             Keychain.set(key.trimmed, for: account(kind))
                             key = ""
-                            app.toast = "Ключ сохранён в связке ключей"
+                            app.toast = tr("Ключ сохранён в связке ключей", "Key saved to the Keychain")
                         }
                         .disabled(key.trimmed.isEmpty)
                     }
@@ -166,14 +176,14 @@ struct ProviderDetails: View {
 
             if kind.usesModel {
                 Rectangle().fill(Theme.border).frame(height: 1)
-                Toggle("Анализировать автоматически после обновления данных", isOn: Binding(get: { app.config.ai.autoAnalyze }, set: { app.config.ai.autoAnalyze = $0; app.saveConfig() }))
-                Stepper("Не чаще, чем раз в \(Int(app.config.ai.minHoursBetweenRuns)) ч на проект",
+                Toggle(tr("Анализировать автоматически после обновления данных", "Analyze automatically after data refresh"), isOn: Binding(get: { app.config.ai.autoAnalyze }, set: { app.config.ai.autoAnalyze = $0; app.saveConfig() }))
+                Stepper(tr("Не чаще, чем раз в \(Int(app.config.ai.minHoursBetweenRuns)) ч на проект", "At most every \(Int(app.config.ai.minHoursBetweenRuns)) h per project"),
                         value: Binding(get: { app.config.ai.minHoursBetweenRuns }, set: { app.config.ai.minHoursBetweenRuns = $0; app.saveConfig() }),
                         in: 1...48, step: 1)
-                Toggle("Отправлять дифф при генерации сообщений коммитов", isOn: Binding(get: { app.config.ai.sendDiffs }, set: { app.config.ai.sendDiffs = $0; app.saveConfig() }))
+                Toggle(tr("Отправлять дифф при генерации сообщений коммитов", "Send the diff when generating commit messages"), isOn: Binding(get: { app.config.ai.sendDiffs }, set: { app.config.ai.sendDiffs = $0; app.saveConfig() }))
 
                 HStack(spacing: 10) {
-                    OrbitButton(testing ? "Проверяю…" : "Проверить подключение", icon: "bolt") {
+                    OrbitButton(testing ? tr("Проверяю…", "Checking…") : tr("Проверить подключение", "Test connection"), icon: "bolt") {
                         testing = true
                         Task {
                             testResult = await app.testAI()
@@ -181,10 +191,10 @@ struct ProviderDetails: View {
                         }
                     }
                     .disabled(testing)
-                    OrbitButton("Проанализировать сейчас", icon: "sparkles", kind: .primary) { app.analyzeNow() }
+                    OrbitButton(tr("Проанализировать сейчас", "Analyze now"), icon: "sparkles", kind: .primary) { app.analyzeNow() }
                     Spacer()
                     if !app.aiCache.projects.isEmpty || !app.aiCache.sessions.isEmpty {
-                        Button("Очистить кэш") {
+                        Button(tr("Очистить кэш", "Clear cache")) {
                             app.aiCache = AICache()
                             Store.save(app.aiCache, to: "ai-cache.json", pretty: false)
                         }
@@ -200,7 +210,7 @@ struct ProviderDetails: View {
                 if !app.aiBusy.isEmpty {
                     HStack(spacing: 8) {
                         ProgressView().controlSize(.small)
-                        Text("В работе: \(app.aiBusy.count)").uiFont(12.5, color: Theme.text2)
+                        Text(tr("В работе: \(app.aiBusy.count)", "In progress: \(app.aiBusy.count)")).uiFont(12.5, color: Theme.text2)
                     }
                 }
             }
@@ -242,44 +252,47 @@ struct GeneralSettingsView: View {
     var body: some View {
         @Bindable var app = app
         Form {
-            Picker("Терминал", selection: Binding(get: { app.config.terminalApp }, set: { app.config.terminalApp = $0; app.saveConfig() })) {
+            Picker(tr("Язык", "Language"), selection: Binding(get: { app.config.language }, set: { app.setLanguage($0) })) {
+                ForEach(AppLanguage.allCases) { Text($0.title).tag($0) }
+            }
+            Picker(tr("Терминал", "Terminal"), selection: Binding(get: { app.config.terminalApp }, set: { app.config.terminalApp = $0; app.saveConfig() })) {
                 ForEach(["Terminal", "iTerm", "Ghostty", "Warp"], id: \.self) { Text($0).tag($0) }
             }
-            Toggle("Уведомления macOS", isOn: Binding(get: { app.config.notifyMacOS }, set: { app.config.notifyMacOS = $0; app.saveConfig() }))
-            Toggle("Утренняя сводка в 9:00", isOn: Binding(get: { app.config.rhythm.morningBrief }, set: { app.config.rhythm.morningBrief = $0; app.saveConfig() }))
-            Toggle("Автоплан по воскресеньям в 20:00", isOn: Binding(get: { app.config.rhythm.autoPlanSunday }, set: { app.config.rhythm.autoPlanSunday = $0; app.saveConfig() }))
-            LabeledContent("Данные") {
+            Toggle(tr("Уведомления macOS", "macOS notifications"), isOn: Binding(get: { app.config.notifyMacOS }, set: { app.config.notifyMacOS = $0; app.saveConfig() }))
+            Toggle(tr("Утренняя сводка в 9:00", "Morning brief at 9:00"), isOn: Binding(get: { app.config.rhythm.morningBrief }, set: { app.config.rhythm.morningBrief = $0; app.saveConfig() }))
+            Toggle(tr("Автоплан по воскресеньям в 20:00", "Auto-plan on Sundays at 20:00"), isOn: Binding(get: { app.config.rhythm.autoPlanSunday }, set: { app.config.rhythm.autoPlanSunday = $0; app.saveConfig() }))
+            LabeledContent(tr("Данные", "Data")) {
                 Button(Store.root.path.abbreviatingHome) { Shell.reveal(Store.root.path) }
             }
-            Section("Обновления") {
-                LabeledContent("Версия") {
+            Section(tr("Обновления", "Updates")) {
+                LabeledContent(tr("Версия", "Version")) {
                     HStack(spacing: 10) {
                         Text(Updater.currentVersion)
                         if let release = app.availableUpdate {
-                            Button("Обновить до \(release.version)") { app.sheet = .update }
+                            Button(tr("Обновить до \(release.version)", "Update to \(release.version)")) { app.sheet = .update }
                         }
                     }
                 }
-                Toggle("Проверять обновления автоматически", isOn: Binding(get: { app.config.autoCheckUpdates }, set: { app.config.autoCheckUpdates = $0; app.saveConfig() }))
-                Toggle("Устанавливать без вопроса", isOn: Binding(get: { app.config.autoInstallUpdates }, set: { app.config.autoInstallUpdates = $0; app.saveConfig() }))
+                Toggle(tr("Проверять обновления автоматически", "Check for updates automatically"), isOn: Binding(get: { app.config.autoCheckUpdates }, set: { app.config.autoCheckUpdates = $0; app.saveConfig() }))
+                Toggle(tr("Устанавливать без вопроса", "Install without asking"), isOn: Binding(get: { app.config.autoInstallUpdates }, set: { app.config.autoInstallUpdates = $0; app.saveConfig() }))
                     .disabled(!app.config.autoCheckUpdates)
-                LabeledContent("Последняя проверка") {
+                LabeledContent(tr("Последняя проверка", "Last checked")) {
                     HStack(spacing: 10) {
-                        Text(app.updatePhase == .checking ? "проверяю…" : app.lastUpdateCheck.map { DateFormat.ago($0, now: app.now) } ?? "ещё не было")
-                        Button("Проверить сейчас") { Task { await app.checkForUpdates(manual: true) } }
+                        Text(app.updatePhase == .checking ? tr("проверяю…", "checking…") : app.lastUpdateCheck.map { DateFormat.ago($0, now: app.now) } ?? tr("ещё не было", "never"))
+                        Button(tr("Проверить сейчас", "Check now")) { Task { await app.checkForUpdates(manual: true) } }
                             .disabled(app.updatePhase == .checking)
                     }
                 }
                 if let skipped = app.config.skippedVersion {
-                    LabeledContent("Пропущена версия \(skipped)") {
-                        Button("Не пропускать") { app.config.skippedVersion = nil; app.saveConfig() }
+                    LabeledContent(tr("Пропущена версия \(skipped)", "Skipped version \(skipped)")) {
+                        Button(tr("Не пропускать", "Don’t skip")) { app.config.skippedVersion = nil; app.saveConfig() }
                     }
                 }
                 if let blocker = Updater.installBlocker, Updater.isEnabled {
                     Text(blocker).foregroundStyle(Theme.yellow)
                 }
             }
-            Button("Пройти онбординг заново") { app.resetOnboarding() }
+            Button(tr("Пройти онбординг заново", "Run onboarding again")) { app.resetOnboarding() }
         }
         .formStyle(.grouped)
     }

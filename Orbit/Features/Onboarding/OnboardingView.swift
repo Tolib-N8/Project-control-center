@@ -39,8 +39,8 @@ struct OnboardingView: View {
             HStack(spacing: 8) {
                 Image(systemName: "lock").font(.system(size: 11))
                 Text(app.config.ai.isEnabled && app.config.ai.provider != .ollama
-                     ? "Данные хранятся локально в ~/.orbit · в модель уходят только сводки сессий и git, код не отправляется"
-                     : "Данные хранятся локально в ~/.orbit · анализ идёт на этом Mac, код никуда не отправляется")
+                     ? tr("Данные хранятся локально в ~/.orbit · в модель уходят только сводки сессий и git, код не отправляется", "Data stays local in ~/.orbit · only session and git summaries go to the model, never code")
+                     : tr("Данные хранятся локально в ~/.orbit · анализ идёт на этом Mac, код никуда не отправляется", "Data stays local in ~/.orbit · analysis runs on this Mac, code never leaves it"))
             }
             .uiFont(12.5, color: Theme.text3)
             .padding(.bottom, 28)
@@ -71,14 +71,14 @@ struct OnboardingView: View {
             .frame(width: 220, alignment: .leading)
             Spacer()
             HStack(spacing: 14) {
-                stepLabel(1, "Репозитории")
+                stepLabel(1, tr("Репозитории", "Repositories"))
                 line
-                stepLabel(2, "Агенты")
+                stepLabel(2, tr("Агенты", "Agents"))
                 line
-                stepLabel(3, "Ритм недели")
+                stepLabel(3, tr("Ритм недели", "Weekly rhythm"))
             }
             Spacer()
-            Button("Пропустить настройку") { finish(skip: true) }
+            Button(tr("Пропустить настройку", "Skip setup")) { finish(skip: true) }
                 .buttonStyle(PlainButtonStyle2())
                 .font(OrbitFont.ui(13)).foregroundStyle(Theme.text2)
                 .frame(width: 220, alignment: .trailing)
@@ -116,7 +116,7 @@ struct OnboardingView: View {
 
     private func stepHeader(_ n: Int, _ title: String, _ subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("ШАГ \(n) ИЗ 3").font(OrbitFont.ui(12, .semibold)).tracking(0.8).foregroundStyle(Theme.accent)
+            Text(tr("ШАГ \(n) ИЗ 3", "STEP \(n) OF 3")).font(OrbitFont.ui(12, .semibold)).tracking(0.8).foregroundStyle(Theme.accent)
             Text(title).font(OrbitFont.ui(34, .semibold)).tracking(-0.8)
             Text(subtitle).uiFont(15, color: Theme.text2).lineSpacing(5).fixedSize(horizontal: false, vertical: true)
         }
@@ -127,14 +127,14 @@ struct OnboardingView: View {
 
     private var reposStep: some View {
         VStack(alignment: .leading, spacing: 0) {
-            stepHeader(1, "Где лежат ваши проекты?", "Orbit найдёт git-репозитории и логи сессий ИИ-агентов. Всё читается локально — код никуда не отправляется.")
+            stepHeader(1, tr("Где лежат ваши проекты?", "Where do your projects live?"), tr("Orbit найдёт git-репозитории и логи сессий ИИ-агентов. Всё читается локально — код никуда не отправляется.", "Orbit finds git repositories and AI agent session logs. Everything is read locally — your code never leaves the Mac."))
             HStack(spacing: 10) {
                 HStack(spacing: 10) {
                     Image(systemName: "folder").foregroundStyle(Theme.text2)
                     Text(roots.map { $0.expandingTilde.abbreviatingHome }.joined(separator: ", ")).monoFont(13).lineLimit(1)
                     Spacer()
-                    Button("+ ещё папка") {
-                        if let path = FolderPicker.pick(message: "Папка, где лежат проекты") {
+                    Button(tr("+ ещё папка", "+ another folder")) {
+                        if let path = FolderPicker.pick(message: tr("Папка, где лежат проекты", "Folder that contains your projects")) {
                             roots.append(path.abbreviatingHome)
                             scan()
                         }
@@ -144,16 +144,16 @@ struct OnboardingView: View {
                 .padding(.horizontal, 14).padding(.vertical, 12)
                 .background(Theme.surface, in: RoundedRectangle(cornerRadius: 9))
                 .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Theme.border))
-                OrbitButton(scanning ? "Сканирую…" : "Сканировать", icon: "viewfinder") { scan() }
+                OrbitButton(scanning ? tr("Сканирую…", "Scanning…") : tr("Сканировать", "Scan"), icon: "viewfinder") { scan() }
             }
             .padding(.bottom, 24)
 
             VStack(spacing: 0) {
                 HStack {
                     Dot(color: scanning ? Theme.yellow : Theme.green)
-                    Text(scanning ? "Ищу репозитории…" : "Найдено \(Plural.repos(found.count))").uiFont(13, .medium)
+                    Text(scanning ? tr("Ищу репозитории…", "Looking for repositories…") : tr("Найдено \(Plural.repos(found.count))", "Found \(Plural.repos(found.count))")).uiFont(13, .medium)
                     Spacer()
-                    Button(selected.count == found.count ? "Снять все" : "Выбрать все") {
+                    Button(selected.count == found.count ? tr("Снять все", "Deselect all") : tr("Выбрать все", "Select all")) {
                         withMotion { selected = selected.count == found.count ? [] : Set(found.map(\.path)) }
                     }
                     .buttonStyle(PlainButtonStyle2()).font(OrbitFont.ui(13)).foregroundStyle(Theme.text2)
@@ -165,16 +165,16 @@ struct OnboardingView: View {
                     if i < found.count - 1 { Rectangle().fill(Theme.border).frame(height: 1) }
                 }
                 if found.isEmpty && !scanning {
-                    Text("В этих папках нет git-репозиториев. Добавьте другую папку.").uiFont(13, color: Theme.text3).padding(24)
+                    Text(tr("В этих папках нет git-репозиториев. Добавьте другую папку.", "No git repositories in these folders. Add another folder.")).uiFont(13, color: Theme.text3).padding(24)
                 }
             }
             .cardStyle(radius: 12)
 
             HStack {
                 let sessions = found.filter { selected.contains($0.path) }.reduce(0) { $0 + $1.agents.values.reduce(0, +) }
-                Text("Выбрано \(Plural.projects(selected.count)) · \(Plural.sessions(sessions)) агентов для анализа").uiFont(13, color: Theme.text2)
+                Text(tr("Выбрано \(Plural.projects(selected.count)) · \(Plural.sessions(sessions)) агентов для анализа", "\(Plural.projects(selected.count)) selected · \(Plural.sessions(sessions)) of agent work to analyze")).uiFont(13, color: Theme.text2)
                 Spacer()
-                OrbitButton("Далее: агенты", icon: "arrow.right", kind: .primary) { go(2) }
+                OrbitButton(tr("Далее: агенты", "Next: agents"), icon: "arrow.right", kind: .primary) { go(2) }
                     .disabled(selected.isEmpty)
                     .opacity(selected.isEmpty ? 0.5 : 1)
             }
@@ -205,7 +205,7 @@ struct OnboardingView: View {
                 .frame(width: 150, alignment: .leading)
                 HStack(spacing: 6) {
                     if repo.agents.isEmpty {
-                        Text("логов агентов нет").uiFont(12.5, color: Theme.text3)
+                        Text(tr("логов агентов нет", "no agent logs")).uiFont(12.5, color: Theme.text3)
                     }
                     ForEach(AgentKind.allCases.filter { repo.agents[$0] != nil }) { a in AgentTag(agent: a) }
                 }
@@ -238,7 +238,7 @@ struct OnboardingView: View {
         let total = AgentKind.allCases.filter { app.config.source($0).enabled }.reduce(0) { $0 + (counts[$1] ?? 0) }
         let sources = AgentKind.allCases.filter { app.config.source($0).enabled && (counts[$0] ?? 0) > 0 }.count
         return VStack(alignment: .leading, spacing: 0) {
-            stepHeader(2, "Откуда читать сессии агентов", "По логам Orbit поймёт, что агент сделал, где застрял и сколько времени ушло на каждый проект.")
+            stepHeader(2, tr("Откуда читать сессии агентов", "Where to read agent sessions from"), tr("По логам Orbit поймёт, что агент сделал, где застрял и сколько времени ушло на каждый проект.", "From the logs Orbit learns what the agent did, where it got stuck and how much time each project took."))
             VStack(spacing: 0) {
                 ForEach(Array(AgentKind.allCases.enumerated()), id: \.element) { i, agent in
                     agentRow(agent, count: counts[agent] ?? 0)
@@ -247,17 +247,17 @@ struct OnboardingView: View {
             }
             .cardStyle()
 
-            Text("Чем анализировать сессии").uiFont(14, .semibold).padding(.top, 32).padding(.bottom, 14)
+            Text(tr("Чем анализировать сессии", "How to analyze sessions")).uiFont(14, .semibold).padding(.top, 32).padding(.bottom, 14)
             ProviderPicker()
             if app.config.ai.provider.usesModel {
                 ProviderDetails().padding(.top, 12)
             }
 
             HStack {
-                OrbitButton("Назад", icon: "arrow.left") { go(1) }
+                OrbitButton(tr("Назад", "Back"), icon: "arrow.left") { go(1) }
                 Spacer()
-                Text("\(Plural.sessions(total)) из \(sources) \(Plural.ru(sources, "источника", "источников", "источников"))").uiFont(13, color: Theme.text3)
-                OrbitButton("Далее: ритм недели", icon: "arrow.right", kind: .primary) { go(3) }
+                Text(tr("\(Plural.sessions(total)) из \(sources) \(Plural.ru(sources, "источника", "источников", "источников"))", "\(Plural.sessions(total)) from \(plural(sources, ru: ("источника", "источников", "источников"), en: ("source", "sources")))")).uiFont(13, color: Theme.text3)
+                OrbitButton(tr("Далее: ритм недели", "Next: weekly rhythm"), icon: "arrow.right", kind: .primary) { go(3) }
             }
             .padding(.top, 28)
         }
@@ -277,12 +277,12 @@ struct OnboardingView: View {
             IconBox(symbol: detected ? "cpu" : "cpu.fill", color: detected ? agent.color : Theme.text3, size: 40)
             VStack(alignment: .leading, spacing: 4) {
                 Text(agent.title).uiFont(15, .medium, color: detected ? Theme.text : Theme.text2)
-                Text(detected ? (source.customPath ?? agent.defaultLogPath).abbreviatingHome : "не найден").monoFont(12, color: Theme.text3)
+                Text(detected ? (source.customPath ?? agent.defaultLogPath).abbreviatingHome : tr("не найден", "not found")).monoFont(12, color: Theme.text3)
             }
             Spacer()
             if detected {
                 if agent == .cursor {
-                    Text("чаты Cursor — в следующей версии").uiFont(12.5, color: Theme.text3)
+                    Text(tr("чаты Cursor — в следующей версии", "Cursor chats — in a future version")).uiFont(12.5, color: Theme.text3)
                 } else {
                     HStack(spacing: 6) {
                         Image(systemName: "checkmark.circle").foregroundStyle(Theme.green)
@@ -295,13 +295,13 @@ struct OnboardingView: View {
                     app.config.agentSources[agent.rawValue] = s
                 }))
             } else if agent != .aider {
-                OrbitButton("Указать путь", icon: "folder.badge.questionmark", compact: true) {
-                    if let path = FolderPicker.pick(message: "Папка с логами \(agent.title)") {
+                OrbitButton(tr("Указать путь", "Set path"), icon: "folder.badge.questionmark", compact: true) {
+                    if let path = FolderPicker.pick(message: tr("Папка с логами \(agent.title)", "\(agent.title) logs folder")) {
                         app.config.agentSources[agent.rawValue] = AgentSourceConfig(enabled: true, customPath: path.abbreviatingHome)
                     }
                 }
             } else {
-                Text("история .aider.chat.history.md не найдена").uiFont(12.5, color: Theme.text3)
+                Text(tr("история .aider.chat.history.md не найдена", "no .aider.chat.history.md found")).uiFont(12.5, color: Theme.text3)
             }
         }
         .padding(.horizontal, 20).padding(.vertical, 16)
@@ -311,11 +311,11 @@ struct OnboardingView: View {
 
     private var rhythmStep: some View {
         VStack(alignment: .leading, spacing: 0) {
-            stepHeader(3, "Когда вы обычно работаете?", "По этому ритму Orbit будет предлагать, какой проект взять в какой день. План всегда можно поправить вручную.")
+            stepHeader(3, tr("Когда вы обычно работаете?", "When do you usually work?"), tr("По этому ритму Orbit будет предлагать, какой проект взять в какой день. План всегда можно поправить вручную.", "Orbit uses this rhythm to suggest which project to take on which day. You can always adjust the plan by hand."))
             HStack {
-                Text("Рабочие дни и часы").uiFont(14, .semibold)
+                Text(tr("Рабочие дни и часы", "Work days and hours")).uiFont(14, .semibold)
                 Spacer()
-                Text("\(rhythm.weeklyHours) ч в неделю · клик — вкл/выкл, правый клик — часы").uiFont(12.5, color: Theme.text3)
+                Text(tr("\(rhythm.weeklyHours) ч в неделю · клик — вкл/выкл, правый клик — часы", "\(rhythm.weeklyHours) h per week · click to toggle, right-click for hours")).uiFont(12.5, color: Theme.text3)
             }
             .padding(.bottom, 14)
             HStack(spacing: 10) {
@@ -325,8 +325,8 @@ struct OnboardingView: View {
 
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Проектов в день, не больше").uiFont(14, .semibold)
-                    Text("Меньше переключений — глубже фокус").uiFont(13, color: Theme.text2)
+                    Text(tr("Проектов в день, не больше", "Projects per day, at most")).uiFont(14, .semibold)
+                    Text(tr("Меньше переключений — глубже фокус", "Fewer switches, deeper focus")).uiFont(13, color: Theme.text2)
                 }
                 Spacer()
                 SegmentedTabs(items: [(1, "1"), (2, "2"), (3, "3")], selection: $rhythm.maxProjectsPerDay)
@@ -336,18 +336,18 @@ struct OnboardingView: View {
             .padding(.bottom, 24)
 
             VStack(spacing: 0) {
-                toggleRow("calendar.badge.clock", "Orbit составляет план каждое воскресенье в 20:00", $rhythm.autoPlanSunday)
+                toggleRow("calendar.badge.clock", tr("Orbit составляет план каждое воскресенье в 20:00", "Orbit drafts a plan every Sunday at 20:00"), $rhythm.autoPlanSunday)
                 Rectangle().fill(Theme.border).frame(height: 1)
-                toggleRow("sun.max", "Утренняя сводка в 9:00: проект дня и что делать", $rhythm.morningBrief)
+                toggleRow("sun.max", tr("Утренняя сводка в 9:00: проект дня и что делать", "Morning brief at 9:00: the project of the day and what to do"), $rhythm.morningBrief)
                 Rectangle().fill(Theme.border).frame(height: 1)
-                toggleRow("bell", "Сигналы о проблемах в Git и сессиях", $rhythm.signalsEnabled)
+                toggleRow("bell", tr("Сигналы о проблемах в Git и сессиях", "Signals about problems in git and sessions"), $rhythm.signalsEnabled)
             }
             .cardStyle()
 
             HStack {
-                OrbitButton("Назад", icon: "arrow.left") { go(2) }
+                OrbitButton(tr("Назад", "Back"), icon: "arrow.left") { go(2) }
                 Spacer()
-                OrbitButton("Готово — открыть Orbit", icon: "checkmark", kind: .primary) { finish(skip: false) }
+                OrbitButton(tr("Готово — открыть Orbit", "Done — open Orbit"), icon: "checkmark", kind: .primary) { finish(skip: false) }
             }
             .padding(.top, 28)
         }
@@ -359,7 +359,7 @@ struct OnboardingView: View {
         return Button { withMotion { rhythm.hours[d] = on ? 0 : 7 } } label: {
             VStack(spacing: 6) {
                 Text(Week.shortNames[d]).uiFont(14, .semibold, color: on ? Theme.text : Theme.text3)
-                Text(on ? "\(hours) ч" : "выходной").font(on ? OrbitFont.mono(15, .semibold) : OrbitFont.ui(12)).foregroundStyle(on ? Theme.accent : Theme.text3)
+                Text(on ? tr("\(hours) ч", "\(hours) h") : tr("выходной", "day off")).font(on ? OrbitFont.mono(15, .semibold) : OrbitFont.ui(12)).foregroundStyle(on ? Theme.accent : Theme.text3)
             }
             .frame(maxWidth: .infinity).frame(height: 76)
             .background(on ? Theme.accent.opacity(0.06) : Theme.surface, in: RoundedRectangle(cornerRadius: 10))
@@ -369,7 +369,7 @@ struct OnboardingView: View {
         .buttonStyle(PlainButtonStyle2())
         .contextMenu {
             ForEach(0...12, id: \.self) { h in
-                Button(h == 0 ? "Выходной" : "\(h) ч") { rhythm.hours[d] = h }
+                Button(h == 0 ? tr("Выходной", "Day off") : tr("\(h) ч", "\(h) h")) { rhythm.hours[d] = h }
             }
         }
     }

@@ -65,6 +65,28 @@ enum Snapshotter {
                 }
                 continue
             case "plan": app.savePlan(app.makePlan(weekKey: app.displayWeekKey)); continue
+            case _ where name.hasPrefix("lang:"):
+                // Live switch without touching AppleLanguages (the real app shares the defaults domain).
+                app.config.language = AppLanguage(rawValue: String(name.dropFirst(5))) ?? .system
+                app.applyLanguage()
+                try? await Task.sleep(for: .seconds(0.5))
+                continue
+            case "settings-general", "settings-ai":
+                let root = Group {
+                    if name == "settings-ai" { AISettingsView() } else { GeneralSettingsView() }
+                }
+                .environment(app).preferredColorScheme(.dark).frame(width: 680, height: 720)
+                let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 680, height: 720), styleMask: [.titled], backing: .buffered, defer: false)
+                window.isReleasedWhenClosed = false
+                window.contentView = NSHostingView(rootView: root)
+                window.orderFront(nil)
+                try? await Task.sleep(for: .seconds(1.5))
+                if let view = window.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+                    view.cacheDisplay(in: view.bounds, to: rep)
+                    try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: "\(dir)/\(name).png"))
+                }
+                window.close()
+                continue
             case "week", "week-empty": app.screen = .week
             case "projects": app.screen = .projects
             case "project": if let p = app.activeSnapshots.max(by: { $0.sessions.count < $1.sessions.count }) { app.screen = .project(p.config.id) }

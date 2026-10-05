@@ -8,23 +8,23 @@ enum AIProviderKind: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .heuristics: "Локальные эвристики"
-        case .claudeCode: "Claude · подписка"
+        case .heuristics: tr("Локальные эвристики", "Local heuristics")
+        case .claudeCode: tr("Claude · подписка", "Claude · subscription")
         case .anthropicAPI: "Claude API"
-        case .codexCLI: "Codex · подписка ChatGPT"
+        case .codexCLI: tr("Codex · подписка ChatGPT", "Codex · ChatGPT subscription")
         case .ollama: "Ollama"
-        case .openAICompatible: "OpenAI-совместимый API"
+        case .openAICompatible: tr("OpenAI-совместимый API", "OpenAI-compatible API")
         }
     }
 
     var subtitle: String {
         switch self {
-        case .heuristics: "Правила по git и логам. Офлайн и мгновенно, без моделей."
-        case .claudeCode: "Через установленный Claude Code — расходует лимиты вашей подписки Pro / Max, ключ не нужен."
-        case .anthropicAPI: "Напрямую через API Anthropic с вашим ключом, оплата по токенам."
-        case .codexCLI: "Через установленный Codex CLI и вашу подписку ChatGPT."
-        case .ollama: "Локальная модель на этом Mac. Полностью офлайн, выводы проще."
-        case .openAICompatible: "OpenAI, OpenRouter, LM Studio и любые совместимые серверы."
+        case .heuristics: tr("Правила по git и логам. Офлайн и мгновенно, без моделей.", "Rules over git and logs. Offline and instant, no models.")
+        case .claudeCode: tr("Через установленный Claude Code — расходует лимиты вашей подписки Pro / Max, ключ не нужен.", "Through your installed Claude Code — uses your Pro / Max subscription limits, no key needed.")
+        case .anthropicAPI: tr("Напрямую через API Anthropic с вашим ключом, оплата по токенам.", "Directly through the Anthropic API with your key, billed per token.")
+        case .codexCLI: tr("Через установленный Codex CLI и вашу подписку ChatGPT.", "Through your installed Codex CLI and your ChatGPT subscription.")
+        case .ollama: tr("Локальная модель на этом Mac. Полностью офлайн, выводы проще.", "A local model on this Mac. Fully offline, simpler conclusions.")
+        case .openAICompatible: tr("OpenAI, OpenRouter, LM Studio и любые совместимые серверы.", "OpenAI, OpenRouter, LM Studio and any compatible server.")
         }
     }
 

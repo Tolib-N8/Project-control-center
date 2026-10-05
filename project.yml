@@ -30,6 +30,8 @@ targets:
       path: Orbit/Info.plist
       properties:
         CFBundleDisplayName: Orbit
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations: [en, ru]
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSApplicationCategoryType: public.app-category.developer-tools

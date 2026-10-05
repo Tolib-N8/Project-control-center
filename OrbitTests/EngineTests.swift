@@ -33,6 +33,9 @@ final class TestOutputTests: XCTestCase {
 }
 
 final class SessionBuilderTests: XCTestCase {
+    /// Expectations below are written for the Russian interface.
+    override func setUp() { super.setUp(); L10n.current = .ru }
+
     let t0 = Date(timeIntervalSince1970: 1_790_000_000)
 
     func testSplitsOnLongPause() {
@@ -84,6 +87,9 @@ final class SessionBuilderTests: XCTestCase {
 }
 
 final class ParserFixtureTests: XCTestCase {
+    /// Expectations below are written for the Russian interface.
+    override func setUp() { super.setUp(); L10n.current = .ru }
+
     private func write(_ lines: [[String: Any]], name: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
         let text = try lines.map { String(data: try JSONSerialization.data(withJSONObject: $0), encoding: .utf8)! }.joined(separator: "\n")
@@ -225,6 +231,9 @@ final class GitServiceTests: XCTestCase {
 }
 
 final class PlannerAndSignalsTests: XCTestCase {
+    /// Expectations below are written for the Russian interface.
+    override func setUp() { super.setUp(); L10n.current = .ru }
+
     private func snapshot(_ name: String, colorIndex: Int = 0, repo: RepoStatus = RepoStatus(), sessions: [AgentSession] = []) -> ProjectSnapshot {
         ProjectSnapshot(config: ProjectConfig(path: "/p/\(name)", name: name, colorIndex: colorIndex), repo: repo, sessions: sessions)
     }
@@ -298,6 +307,9 @@ final class PlannerAndSignalsTests: XCTestCase {
 }
 
 final class AITests: XCTestCase {
+    /// Expectations below are written for the Russian interface.
+    override func setUp() { super.setUp(); L10n.current = .ru }
+
     func testJSONExtractionToleratesNoise() {
         XCTAssertEqual(JSONText.firstObject(in: "```json\n{\"a\": 1}\n```")?["a"] as? Int, 1)
         XCTAssertEqual(JSONText.lastObject(in: "login banner\n{\"type\":\"result\",\"x\":2}\n")?["x"] as? Int, 2)
@@ -424,5 +436,63 @@ final class CLILocatorTests: XCTestCase {
         XCTAssertEqual(parts.first, "/opt/homebrew/bin")
         XCTAssertEqual(parts.count, Set(parts).count)
         XCTAssertTrue(parts.contains("/usr/bin"))
+    }
+}
+
+final class LocalizationTests: XCTestCase {
+    private var saved = L10n.current
+    override func setUp() { super.setUp(); saved = L10n.current }
+    override func tearDown() { L10n.current = saved; super.tearDown() }
+
+    func testPluralsInBothLanguages() {
+        L10n.current = .ru
+        XCTAssertEqual(Plural.files(1), "1 файл")
+        XCTAssertEqual(Plural.files(3), "3 файла")
+        XCTAssertEqual(Plural.files(11), "11 файлов")
+        XCTAssertEqual(Plural.commits(21), "21 коммит")
+        L10n.current = .en
+        XCTAssertEqual(Plural.files(1), "1 file")
+        XCTAssertEqual(Plural.files(3), "3 files")
+        XCTAssertEqual(Plural.repos(0), "0 repositories")
+        XCTAssertEqual(pluralWord(1, ru: ("день", "дня", "дней"), en: ("day", "days")), "day")
+    }
+
+    func testDatesAndNumbers() {
+        let date = DateFormat.isoDay.date(from: "2026-09-28")!
+        let now = date.addingTimeInterval(3 * 3600)
+        L10n.current = .ru
+        XCTAssertEqual(DateFormat.short(date), "28 сен")
+        XCTAssertEqual(DateFormat.dayMonthFull.string(from: date), "28 сентября")
+        XCTAssertEqual(DateFormat.ago(date, now: now), "3 ч назад")
+        XCTAssertEqual(Duration.hours(1.5), "1,5")
+        XCTAssertEqual(Duration.text(minutes: 72), "1 ч 12 мин")
+        XCTAssertEqual(NumberText.grouped(12500), "12 500")
+        L10n.current = .en
+        XCTAssertEqual(DateFormat.short(date), "Sep 28")
+        XCTAssertEqual(DateFormat.dayMonthFull.string(from: date), "September 28")
+        XCTAssertEqual(DateFormat.weekdayFull.string(from: date), "Monday")
+        XCTAssertEqual(DateFormat.ago(date, now: now), "3 h ago")
+        XCTAssertEqual(Duration.hours(1.5), "1.5")
+        XCTAssertEqual(Duration.text(minutes: 72), "1 h 12 min")
+        XCTAssertEqual(NumberText.grouped(12500), "12,500")
+        XCTAssertEqual(Week.shortNames.first, "Mon")
+    }
+
+    func testLanguageSetting() throws {
+        XCTAssertEqual(AppLanguage.ru.resolved, .ru)
+        XCTAssertEqual(AppLanguage.en.resolved, .en)
+        // Configs written before 0.7 belong to Russian-speaking users and stay Russian.
+        let old = try JSONDecoder().decode(OrbitConfig.self, from: Data(#"{"onboarded":true}"#.utf8))
+        XCTAssertEqual(old.language, .ru)
+        let fresh = try JSONDecoder().decode(OrbitConfig.self, from: Data(#"{"onboarded":false}"#.utf8))
+        XCTAssertEqual(fresh.language, .system)
+    }
+
+    func testAICacheIsPerLanguage() {
+        // Russian keeps the pre-0.7 hashes, so existing caches stay valid.
+        L10n.current = .ru
+        XCTAssertEqual(AnalysisService.languageSalt, "")
+        L10n.current = .en
+        XCTAssertEqual(AnalysisService.languageSalt, "|lang:en")
     }
 }

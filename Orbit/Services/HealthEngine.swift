@@ -67,30 +67,30 @@ enum HealthEngine {
             if age > 24 {
                 let pen = min(20, 8 + age / 12)
                 score -= pen
-                reasons.append("изменения не закоммичены дольше суток")
+                reasons.append(tr("изменения не закоммичены дольше суток", "changes uncommitted for over a day"))
             } else {
                 score -= 2
             }
         }
         if p.repo.behindMain >= 5 {
             score -= min(25, Double(p.repo.behindMain) * 0.5)
-            reasons.append("отстаёт от main на \(p.repo.behindMain)")
+            reasons.append(tr("отстаёт от main на \(p.repo.behindMain)", "\(p.repo.behindMain) behind main"))
         }
         if p.repo.conflictFiles > 0 {
             score -= min(10, Double(p.repo.conflictFiles) * 3)
-            reasons.append("конфликты: \(p.repo.conflictFiles)")
+            reasons.append(tr("конфликты: \(p.repo.conflictFiles)", "conflicts: \(p.repo.conflictFiles)"))
         }
 
         let past = p.sessions.filter { $0.end <= date }
         if let tested = past.first(where: { $0.testsFailed != nil }), (tested.testsFailed ?? 0) > 0 {
             score -= 10
-            reasons.append("падают тесты")
+            reasons.append(tr("падают тесты", "tests failing"))
         }
 
         let idle = p.idleDays(at: date)
         if idle > 7 && idle < 999 {
             score -= min(25, 10 + Double(idle - 7) * 2)
-            reasons.append("\(idle) дн. без работы")
+            reasons.append(tr("\(idle) дн. без работы", "idle for \(idle) days"))
         } else if idle >= 999 {
             score -= 20
         } else if idle > 3 {
@@ -102,7 +102,7 @@ enum HealthEngine {
             let bad = week.filter { $0.status == .rolledBack || $0.status == .unfinished }.count
             let ratio = Double(bad) / Double(week.count)
             score -= (15 * ratio).rounded()
-            if ratio >= 0.5 { reasons.append("много незавершённых сессий") }
+            if ratio >= 0.5 { reasons.append(tr("много незавершённых сессий", "many unfinished sessions")) }
             score += Double(min(5, week.filter { $0.status == .done }.count))
         }
         score += Double(min(3, p.commits(in: 7, before: date).count))
@@ -127,8 +127,8 @@ enum HealthEngine {
     }
 
     static func label(_ score: Int) -> String {
-        if score >= 75 { return "В хорошей форме" }
-        if score >= 50 { return "Требует внимания" }
-        return "Критично"
+        if score >= 75 { return tr("В хорошей форме", "In good shape") }
+        if score >= 50 { return tr("Требует внимания", "Needs attention") }
+        return tr("Критично", "Critical")
     }
 }

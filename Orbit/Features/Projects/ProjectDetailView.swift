@@ -22,7 +22,7 @@ struct ProjectDetailView: View {
                 }
             }
         } else {
-            Page { EmptyHint(symbol: "folder", title: "Проект не найден", text: "Возможно, он был отключён.") }
+            Page { EmptyHint(symbol: "folder", title: tr("Проект не найден", "Project not found"), text: tr("Возможно, он был отключён.", "It may have been removed.")) }
         }
     }
 
@@ -32,7 +32,7 @@ struct ProjectDetailView: View {
         return HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
-                    Button("Проекты") { app.screen = .projects }.buttonStyle(PlainButtonStyle2()).font(OrbitFont.ui(12.5)).foregroundStyle(Theme.text3)
+                    Button(tr("Проекты", "Projects")) { app.screen = .projects }.buttonStyle(PlainButtonStyle2()).font(OrbitFont.ui(12.5)).foregroundStyle(Theme.text3)
                     Image(systemName: "chevron.right").font(.system(size: 9)).foregroundStyle(Theme.text3)
                     Text(snap.config.displayPath).monoFont(12.5, color: Theme.text3)
                 }
@@ -49,11 +49,11 @@ struct ProjectDetailView: View {
             }
             Spacer()
             HStack(spacing: 10) {
-                OrbitButton(days.isEmpty ? "Дни: не выбраны" : "Дни: \(days)", icon: "calendar") {
+                OrbitButton(days.isEmpty ? tr("Дни: не выбраны", "Days: none") : tr("Дни: \(days)", "Days: \(days)"), icon: "calendar") {
                     app.sheet = .planner(weekKey: app.currentWeekKey)
                 }
-                OrbitButton("Терминал", icon: "terminal") { app.openTerminal(projectId) }
-                OrbitButton(app.isSyncing || app.aiBusy.contains("project:" + projectId) ? "Анализ…" : "Запустить анализ", icon: "sparkles", kind: .primary) {
+                OrbitButton(tr("Терминал", "Terminal"), icon: "terminal") { app.openTerminal(projectId) }
+                OrbitButton(app.isSyncing || app.aiBusy.contains("project:" + projectId) ? tr("Анализ…", "Analyzing…") : tr("Запустить анализ", "Run analysis"), icon: "sparkles", kind: .primary) {
                     app.analyzeNow(projectId: projectId)
                 }
             }
@@ -65,9 +65,9 @@ struct ProjectDetailView: View {
         let agents = AgentKind.allCases.filter { a in snap.sessions.contains { $0.agent == a } }
         return VStack(spacing: 0) {
             HStack {
-                Text("Сессии ИИ-агентов").uiFont(14, .semibold)
+                Text(tr("Сессии ИИ-агентов", "AI agent sessions")).uiFont(14, .semibold)
                 Spacer()
-                SegmentedTabs(items: [(AgentKind?.none, "Все · \(snap.sessions.count)")] + agents.map { (Optional($0), $0.title) },
+                SegmentedTabs(items: [(AgentKind?.none, tr("Все · \(snap.sessions.count)", "All · \(snap.sessions.count)"))] + agents.map { (Optional($0), $0.title) },
                               selection: $agentFilter)
             }
             .padding(.horizontal, 20).padding(.vertical, 18)
@@ -78,7 +78,7 @@ struct ProjectDetailView: View {
                     IconBox(symbol: "sparkles", color: Theme.accent, size: 30)
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 8) {
-                            Text("\(app.projectAI(snap.config.id) != nil ? "Вывод ИИ" : "Вывод") по последним \(min(5, snap.sessions.count)) сессиям")
+                            Text(tr("\(app.projectAI(snap.config.id) != nil ? "Вывод ИИ" : "Вывод") по последним \(min(5, snap.sessions.count)) сессиям", "\(app.projectAI(snap.config.id) != nil ? "AI take" : "Summary") on the last \(Plural.sessions(min(5, snap.sessions.count)))"))
                                 .uiFont(13, .semibold, color: Theme.accent)
                             if let ai = app.projectAI(snap.config.id) {
                                 Text("\(ai.source) · \(DateFormat.relativeDay(ai.createdAt))").uiFont(11.5, color: Theme.text3)
@@ -97,7 +97,7 @@ struct ProjectDetailView: View {
             }
 
             if list.isEmpty {
-                EmptyHint(symbol: "cpu", title: "Сессий нет", text: "Запустите Claude Code или Codex в папке проекта — Orbit подхватит логи.")
+                EmptyHint(symbol: "cpu", title: tr("Сессий нет", "No sessions"), text: tr("Запустите Claude Code или Codex в папке проекта — Orbit подхватит логи.", "Run Claude Code or Codex in the project folder — Orbit will pick up the logs."))
                     .padding(.vertical, 40)
             }
             ForEach(Array(list.prefix(25).enumerated()), id: \.element.id) { i, s in
@@ -146,8 +146,8 @@ struct SessionRow: View {
 
     private func dayLabel(_ d: Date) -> String {
         let cal = Week.calendar
-        if cal.isDateInToday(d) { return "Сегодня" }
-        if cal.isDateInYesterday(d) { return "Вчера" }
+        if cal.isDateInToday(d) { return tr("Сегодня", "Today") }
+        if cal.isDateInYesterday(d) { return tr("Вчера", "Yesterday") }
         return DateFormat.weekdayShort(d)
     }
 
@@ -175,34 +175,34 @@ struct StatTilesRow: View {
             tile(width: 320) {
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Здоровье").uiFont(12.5, color: Theme.text2)
+                        Text(tr("Здоровье", "Health")).uiFont(12.5, color: Theme.text2)
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text("\(score)").font(OrbitFont.ui(28, .semibold)).foregroundStyle(Theme.healthColor(score))
-                            if trend != 0 { Text("\(trend > 0 ? "↑" : "↓") \(abs(trend)) за неделю").uiFont(12.5, color: Theme.text3) }
+                            if trend != 0 { Text(tr("\(trend > 0 ? "↑" : "↓") \(abs(trend)) за неделю", "\(trend > 0 ? "↑" : "↓") \(abs(trend)) this week")).uiFont(12.5, color: Theme.text3) }
                         }
-                        Text("Тренд за 14 дней по сессиям, тестам и git").uiFont(12, color: Theme.text3)
+                        Text(tr("Тренд за 14 дней по сессиям, тестам и git", "14-day trend from sessions, tests and git")).uiFont(12, color: Theme.text3)
                     }
                     Spacer()
                     Sparkline(values: history).frame(width: 120, height: 44)
                 }
             }
             divider
-            tile { statContent("Сессии агентов", "\(week.count)", "за 7 дней · \(Duration.text(minutes: minutes))") }
+            tile { statContent(tr("Сессии агентов", "Agent sessions"), "\(week.count)", tr("за 7 дней · \(Duration.text(minutes: minutes))", "in 7 days · \(Duration.text(minutes: minutes))")) }
             divider
-            tile { statContent("Коммиты", "\(commits.count)", "+\(NumberText.grouped(added)) / −\(NumberText.grouped(removed)) строк") }
+            tile { statContent(tr("Коммиты", "Commits"), "\(commits.count)", tr("+\(NumberText.grouped(added)) / −\(NumberText.grouped(removed)) строк", "+\(NumberText.grouped(added)) / −\(NumberText.grouped(removed)) lines")) }
             divider
             tile {
                 if let total = snap.testsTotal {
-                    statContent("Тесты", "\(total)", snap.testsFailing > 0 ? "\(snap.testsFailing) падают" : "все зелёные",
+                    statContent(tr("Тесты", "Tests"), "\(total)", snap.testsFailing > 0 ? tr("\(snap.testsFailing) падают", "\(snap.testsFailing) failing") : tr("все зелёные", "all green"),
                                 color: snap.testsFailing > 0 ? Theme.red : Theme.green)
                 } else {
-                    statContent("Тесты", "—", "агенты не запускали тесты", color: Theme.text3)
+                    statContent(tr("Тесты", "Tests"), "—", tr("агенты не запускали тесты", "agents didn’t run tests"), color: Theme.text3)
                 }
             }
             divider
             tile {
-                statContent("Незакоммичено", "\(snap.repo.changes.count)",
-                            snap.repo.changes.isEmpty ? "рабочая копия чистая" : "\(Plural.ru(snap.repo.changes.count, "файл", "файла", "файлов")) · \(snap.repo.changesAgeHours.map { Duration.age(hours: $0) + " назад" } ?? "")",
+                statContent(tr("Незакоммичено", "Uncommitted"), "\(snap.repo.changes.count)",
+                            snap.repo.changes.isEmpty ? tr("рабочая копия чистая", "working tree clean") : "\(pluralWord(snap.repo.changes.count, ru: ("файл", "файла", "файлов"), en: ("file", "files"))) · \(snap.repo.changesAgeHours.map { tr("\(Duration.age(hours: $0)) назад", "\(Duration.age(hours: $0)) ago") } ?? "")",
                             color: snap.repo.changes.isEmpty ? Theme.text : Theme.yellow)
             }
         }
@@ -277,13 +277,13 @@ struct GitPanel: View {
             .hairline()
 
             HStack(spacing: 20) {
-                Label { Text("\(r.ahead) впереди").uiFont(13, color: Theme.text2) } icon: { Image(systemName: "arrow.up").font(.system(size: 11)) }
-                Label { Text("\(r.behind) позади").uiFont(13, color: Theme.text2) } icon: { Image(systemName: "arrow.down").font(.system(size: 11)) }
+                Label { Text(tr("\(r.ahead) впереди", "\(r.ahead) ahead")).uiFont(13, color: Theme.text2) } icon: { Image(systemName: "arrow.up").font(.system(size: 11)) }
+                Label { Text(tr("\(r.behind) позади", "\(r.behind) behind")).uiFont(13, color: Theme.text2) } icon: { Image(systemName: "arrow.down").font(.system(size: 11)) }
                 if r.mainBranch != nil && r.branch != r.mainBranch {
                     Text("main −\(r.behindMain)").monoFont(12.5, color: r.behindMain >= 20 ? Theme.red : Theme.text2)
                 }
                 if snap.testsFailing > 0 {
-                    Label { Text("\(snap.testsFailing) падают").uiFont(13, color: Theme.red) } icon: { Image(systemName: "xmark.circle").foregroundStyle(Theme.red) }
+                    Label { Text(tr("\(snap.testsFailing) падают", "\(snap.testsFailing) failing")).uiFont(13, color: Theme.red) } icon: { Image(systemName: "xmark.circle").foregroundStyle(Theme.red) }
                 }
             }
             .foregroundStyle(Theme.text2)
@@ -293,7 +293,7 @@ struct GitPanel: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text("Незакоммиченные · \(r.changes.count)").uiFont(13, .semibold, color: r.changes.isEmpty ? Theme.text2 : Theme.yellow)
+                    Text(tr("Незакоммиченные · \(r.changes.count)", "Uncommitted · \(r.changes.count)")).uiFont(13, .semibold, color: r.changes.isEmpty ? Theme.text2 : Theme.yellow)
                     Spacer()
                     if let age = r.changesAgeHours { Text(Duration.age(hours: age)).uiFont(12, color: Theme.text3) }
                 }
@@ -301,42 +301,42 @@ struct GitPanel: View {
                     changeRow(c).transition(Motion.transition(.opacity.combined(with: .offset(x: -8))))
                 }
                 .animation(Motion.pick(Motion.snappy), value: r.changes.map(\.path))
-                if r.changes.count > 8 { Text("и ещё \(r.changes.count - 8)…").uiFont(12, color: Theme.text3) }
+                if r.changes.count > 8 { Text(tr("и ещё \(r.changes.count - 8)…", "and \(r.changes.count - 8) more…")).uiFont(12, color: Theme.text3) }
                 if !r.changes.isEmpty {
                     HStack(spacing: 10) {
                         Button { app.sheet = .commit(projectId: snap.config.id) } label: {
                             HStack(spacing: 8) {
                                 Image(systemName: "sparkles").foregroundStyle(Theme.accent)
-                                Text("Сгенерировать коммит").uiFont(13, .medium)
+                                Text(tr("Сгенерировать коммит", "Generate commit")).uiFont(13, .medium)
                             }
                             .frame(maxWidth: .infinity).padding(.vertical, 9)
                             .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.border))
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(PlainButtonStyle2())
-                        OrbitButton("Дифф", icon: "chevron.left.forwardslash.chevron.right") { app.sheet = .diff(projectId: snap.config.id) }
+                        OrbitButton(tr("Дифф", "Diff"), icon: "chevron.left.forwardslash.chevron.right") { app.sheet = .diff(projectId: snap.config.id) }
                     }
                     .padding(.top, 4)
                 } else {
-                    Text("Рабочая копия чистая").uiFont(12.5, color: Theme.text3)
+                    Text(tr("Рабочая копия чистая", "Working tree clean")).uiFont(12.5, color: Theme.text3)
                 }
             }
             .padding(.horizontal, 20).padding(.vertical, 18)
             .hairline()
 
             VStack(alignment: .leading, spacing: 14) {
-                Text("Последние коммиты").uiFont(13, .semibold, color: Theme.text2)
+                Text(tr("Последние коммиты", "Recent commits")).uiFont(13, .semibold, color: Theme.text2)
                 let commits = r.commits.isEmpty ? (r.lastCommit.map { [$0] } ?? []) : Array(r.commits.prefix(4))
                 ForEach(commits) { c in
                     HStack(alignment: .top, spacing: 10) {
                         Circle().strokeBorder(Theme.text3, lineWidth: 1.5).frame(width: 9, height: 9).padding(.top, 4)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(c.subject).uiFont(13.5).lineLimit(1)
-                            Text("\(c.shortHash) · \(c.agent?.title ?? "вы") · \(DateFormat.relativeDay(c.date, withTime: false))").monoFont(11.5, color: Theme.text3)
+                            Text(tr("\(c.shortHash) · \(c.agent?.title ?? "вы") · \(DateFormat.relativeDay(c.date, withTime: false))", "\(c.shortHash) · \(c.agent?.title ?? "you") · \(DateFormat.relativeDay(c.date, withTime: false))")).monoFont(11.5, color: Theme.text3)
                         }
                     }
                 }
-                if commits.isEmpty { Text("Коммитов нет").uiFont(12.5, color: Theme.text3) }
+                if commits.isEmpty { Text(tr("Коммитов нет", "No commits")).uiFont(12.5, color: Theme.text3) }
             }
             .padding(.horizontal, 20).padding(.vertical, 18)
         }
@@ -370,9 +370,9 @@ struct WorkDaysPanel: View {
         let today = Week.weekdayIndex(app.now)
         VStack(alignment: .leading, spacing: 18) {
             HStack {
-                Text("Дни работы").uiFont(14, .semibold)
+                Text(tr("Дни работы", "Work days")).uiFont(14, .semibold)
                 Spacer()
-                Text("клик — включить/выключить").uiFont(12, color: Theme.text3)
+                Text(tr("клик — включить/выключить", "click to toggle")).uiFont(12, color: Theme.text3)
             }
             HStack(spacing: 8) {
                 ForEach(0..<7, id: \.self) { d in

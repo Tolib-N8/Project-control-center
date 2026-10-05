@@ -149,7 +149,7 @@ final class SessionBuilder {
         current = seg
         if isRevert {
             update { $0.reverts += 1 }
-            append(SessionEvent(time: time, kind: .revert, text: "Откат правки", files: [file]))
+            append(SessionEvent(time: time, kind: .revert, text: tr("Откат правки", "Edit reverted"), files: [file]))
         } else {
             merge(SessionEvent(time: time, kind: .edit, text: "", files: [file]))
         }
@@ -226,7 +226,7 @@ final class SessionBuilder {
             if useful.count > 1 && index > 0 && prompt.count >= 20 {
                 title = Self.titleFromPrompt(prompt)
             } else {
-                title = seg.title ?? globalTitle ?? (prompt.isEmpty ? "Сессия \(agent.title)" : Self.titleFromPrompt(prompt))
+                title = seg.title ?? globalTitle ?? (prompt.isEmpty ? tr("Сессия \(agent.title)", "\(agent.title) session") : Self.titleFromPrompt(prompt))
             }
             var events = seg.events
             events.append(SessionEvent(time: seg.lastTime, kind: .stop, text: ""))

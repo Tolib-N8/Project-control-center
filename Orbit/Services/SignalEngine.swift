@@ -71,28 +71,28 @@ enum SignalEngine {
             guard !p.repo.changes.isEmpty, let age = p.repo.changesAgeHours, age >= t else { return [] }
             let n = p.repo.changes.count
             let lastSession = p.sessions.first.map { DateFormat.relativeDay($0.end, withTime: false) }
-            var detail = "Изменения лежат только локально"
-            if let lastSession { detail += " — после сессии \(lastSession)" }
-            detail += ". Сообщение коммита можно сгенерировать по списку файлов."
+            var detail = tr("Изменения лежат только локально", "Changes exist only locally")
+            if let lastSession { detail += tr(" — после сессии \(lastSession)", " — since the session \(lastSession)") }
+            detail += tr(". Сообщение коммита можно сгенерировать по списку файлов.", ". A commit message can be generated from the file list.")
             let lines = p.repo.linesAdded + p.repo.linesRemoved
             return [make(age > 72 && lines >= 50 ? .critical : .warning,
-                         "\(Plural.files(n)) не закоммичено " + (age > 48 ? "\(Int(age / 24)) дн." : "больше суток"),
+                         tr("\(Plural.files(n)) не закоммичено ", "\(Plural.files(n)) uncommitted for ") + (age > 48 ? tr("\(Int(age / 24)) дн.", "\(Plural.days(Int(age / 24)))") : tr("больше суток", "over a day")),
                          detail,
-                         [.init(label: "Файлов", value: "\(n)"),
-                          .init(label: "Строк", value: lines == 0 ? "—" : "+\(p.repo.linesAdded) −\(p.repo.linesRemoved)"),
-                          .init(label: "Возраст", value: Duration.age(hours: age))])]
+                         [.init(label: tr("Файлов", "Files"), value: "\(n)"),
+                          .init(label: tr("Строк", "Lines"), value: lines == 0 ? "—" : "+\(p.repo.linesAdded) −\(p.repo.linesRemoved)"),
+                          .init(label: tr("Возраст", "Age"), value: Duration.age(hours: age))])]
 
         case .behindMain:
             guard let main = p.repo.mainBranch, p.repo.branch != main, Double(p.repo.behindMain) >= t else { return [] }
-            var detail = "Чем дольше ждать, тем сложнее rebase"
-            detail += p.repo.conflictFiles > 0 ? ": уже есть конфликты в \(Plural.files(p.repo.conflictFiles))." : "."
-            if let plannedText { detail += " Проект запланирован на \(plannedText) — лучше сделать rebase до начала работы." }
-            var metrics: [SignalMetric] = [.init(label: "Конфликты", value: p.repo.conflictFiles > 0 ? Plural.files(p.repo.conflictFiles) : "нет")]
+            var detail = tr("Чем дольше ждать, тем сложнее rebase", "The longer you wait, the harder the rebase")
+            detail += p.repo.conflictFiles > 0 ? tr(": уже есть конфликты в \(Plural.files(p.repo.conflictFiles)).", ": there are already conflicts in \(Plural.files(p.repo.conflictFiles)).") : "."
+            if let plannedText { detail += tr(" Проект запланирован на \(plannedText) — лучше сделать rebase до начала работы.", " The project is planned for \(plannedText) — better rebase before you start.") }
+            var metrics: [SignalMetric] = [.init(label: tr("Конфликты", "Conflicts"), value: p.repo.conflictFiles > 0 ? Plural.files(p.repo.conflictFiles) : tr("нет", "none"))]
             let idle = p.idleDays(at: now)
-            if idle > 0 && idle < 999 { metrics.append(.init(label: "Без работы", value: Plural.days(idle))) }
-            if let plannedText { metrics.append(.init(label: "В плане", value: plannedText)) }
+            if idle > 0 && idle < 999 { metrics.append(.init(label: tr("Без работы", "Idle"), value: Plural.days(idle))) }
+            if let plannedText { metrics.append(.init(label: tr("В плане", "Planned"), value: plannedText)) }
             return [make(p.repo.conflictFiles > 0 || Double(p.repo.behindMain) >= t * 2 ? .critical : .warning,
-                         "Ветка \(p.repo.branch) отстала от \(main) на \(Plural.commits(p.repo.behindMain))",
+                         tr("Ветка \(p.repo.branch) отстала от \(main) на \(Plural.commits(p.repo.behindMain))", "Branch \(p.repo.branch) is \(Plural.commits(p.repo.behindMain)) behind \(main)"),
                          detail, metrics)]
 
         case .agentReverts:
@@ -106,35 +106,35 @@ enum SignalEngine {
             let file = sessions.compactMap(\.hottestFile).max { $0.edits < $1.edits }.map { ($0.path as NSString).lastPathComponent }
             let agent = sessions.first!.agent.title
             let title = streak
-                ? "Агент \(Plural.times(n)) подряд не довёл правки" + (file.map { " в \($0)" } ?? "")
-                : "Агент \(Plural.times(single!.reverts)) откатывал правки" + (file.map { " в \($0)" } ?? "")
+                ? tr("Агент \(Plural.times(n)) подряд не довёл правки", "Agent left its edits unfinished \(Plural.times(n)) in a row") + (file.map { tr(" в \($0)", " in \($0)") } ?? "")
+                : tr("Агент \(Plural.times(single!.reverts)) откатывал правки", "Agent reverted its edits \(Plural.times(single!.reverts))") + (file.map { tr(" в \($0)", " in \($0)") } ?? "")
             return [make(.warning, title,
-                         "\(streak ? "\(Plural.sessions(n).capitalizedFirst) подряд" : "За одну сессию") \(agent) переделывал одно и то же без коммита. Скорее всего, в задаче нет критерия готовности.",
-                         [.init(label: "Сессий", value: "\(sessions.count)"),
-                          .init(label: "Потрачено", value: Duration.text(minutes: minutes)),
-                          .init(label: "Коммитов", value: "\(sessions.reduce(0) { $0 + $1.commitsInWindow.count })")])]
+                         tr("\(streak ? "\(Plural.sessions(n).capitalizedFirst) подряд" : "За одну сессию") \(agent) переделывал одно и то же без коммита. Скорее всего, в задаче нет критерия готовности.", "\(streak ? "For \(Plural.sessions(n)) in a row" : "Within one session") \(agent) kept redoing the same thing without committing. The task most likely lacks a definition of done."),
+                         [.init(label: tr("Сессий", "Sessions"), value: "\(sessions.count)"),
+                          .init(label: tr("Потрачено", "Time spent"), value: Duration.text(minutes: minutes)),
+                          .init(label: tr("Коммитов", "Commits"), value: "\(sessions.reduce(0) { $0 + $1.commitsInWindow.count })")])]
 
         case .testsFailing:
             guard let s = p.lastTestedSession, let failed = s.testsFailed, failed > 0,
                   now.timeIntervalSince(s.end) < 14 * 86400 else { return [] }
-            var detail = "В последней сессии \(s.agent.title) тесты остались красными"
+            var detail = tr("В последней сессии \(s.agent.title) тесты остались красными", "Tests stayed red in the last \(s.agent.title) session")
             if let name = s.lastFailingTest { detail += ": \(name)" }
             detail += "."
-            return [make(.warning, "Падают \(Plural.tests(failed))", detail,
-                         [.init(label: "Падают", value: "\(failed)"),
-                          .init(label: "Прошли", value: "\(s.testsPassed ?? 0)"),
-                          .init(label: "Сессия", value: DateFormat.relativeDay(s.end))])]
+            return [make(.warning, tr("Падают \(Plural.tests(failed))", "\(Plural.tests(failed)) failing"), detail,
+                         [.init(label: tr("Падают", "Failing"), value: "\(failed)"),
+                          .init(label: tr("Прошли", "Passed"), value: "\(s.testsPassed ?? 0)"),
+                          .init(label: tr("Сессия", "Session"), value: DateFormat.relativeDay(s.end))])]
 
         case .idle:
             let idle = p.idleDays(at: now)
             guard Double(idle) >= t, idle < 999 else { return [] }
-            var metrics: [SignalMetric] = [.init(label: "Без работы", value: Plural.days(idle))]
-            if let c = p.repo.lastCommit { metrics.append(.init(label: "Последний коммит", value: DateFormat.short(c.date))) }
-            metrics.append(.init(label: "В плане", value: plannedText ?? "нет"))
+            var metrics: [SignalMetric] = [.init(label: tr("Без работы", "Idle"), value: Plural.days(idle))]
+            if let c = p.repo.lastCommit { metrics.append(.init(label: tr("Последний коммит", "Last commit"), value: DateFormat.short(c.date))) }
+            metrics.append(.init(label: tr("В плане", "Planned"), value: plannedText ?? tr("нет", "none")))
             let detail = plannedText == nil
-                ? "Проекта нет в плане недели. Запланируйте хотя бы короткий блок или отправьте его в архив."
-                : "Проект стоит в плане на \(plannedText!) — стоит освежить контекст заранее."
-            return [make(idle >= Int(t) * 3 ? .critical : .warning, "Нет работы \(Plural.days(idle))", detail, metrics)]
+                ? tr("Проекта нет в плане недели. Запланируйте хотя бы короткий блок или отправьте его в архив.", "The project isn’t in this week’s plan. Schedule at least a short block or archive it.")
+                : tr("Проект стоит в плане на \(plannedText!) — стоит освежить контекст заранее.", "The project is planned for \(plannedText!) — worth refreshing the context beforehand.")
+            return [make(idle >= Int(t) * 3 ? .critical : .warning, tr("Нет работы \(Plural.days(idle))", "No work for \(Plural.days(idle))"), detail, metrics)]
 
         case .skippedDay:
             guard let plan else { return [] }
@@ -145,9 +145,9 @@ enum SignalEngine {
                 let date = Week.day(block.day, of: monday)
                 let actual = Activity.hours(p.sessions, on: date)
                 if actual < 0.25 {
-                    result.append(make(.warning, "День пропущен: \(Week.shortNames[block.day]), \(DateFormat.short(date))",
-                                       "По плану было \(Duration.hours(block.hours)) ч, сессий агентов в этот день нет. Перенесите блок на другой день.",
-                                       [.init(label: "План", value: "\(Duration.hours(block.hours)) ч"), .init(label: "Факт", value: "0 ч")],
+                    result.append(make(.warning, tr("День пропущен: \(Week.shortNames[block.day]), \(DateFormat.short(date))", "Day skipped: \(Week.shortNames[block.day]), \(DateFormat.short(date))"),
+                                       tr("По плану было \(Duration.hours(block.hours)) ч, сессий агентов в этот день нет. Перенесите блок на другой день.", "\(Duration.hours(block.hours)) h were planned, but there were no agent sessions that day. Move the block to another day."),
+                                       [.init(label: tr("План", "Planned"), value: tr("\(Duration.hours(block.hours)) ч", "\(Duration.hours(block.hours)) h")), .init(label: tr("Факт", "Actual"), value: tr("0 ч", "0 h"))],
                                        suffix: ":\(plan.weekKey):\(block.day)"))
                 }
             }
@@ -155,23 +155,23 @@ enum SignalEngine {
 
         case .tokens:
             guard let s = p.sessions(in: 7, before: now).first(where: { Double($0.tokens) >= t }) else { return [] }
-            return [make(.warning, "Сессия «\(s.title)» потратила \(NumberText.compact(s.tokens)) токенов",
-                         "Большой расход токенов обычно значит, что агент перечитывает много контекста. Разбейте задачу на части.",
-                         [.init(label: "Токены", value: NumberText.compact(s.tokens)),
-                          .init(label: "Длительность", value: Duration.text(minutes: s.durationMinutes))],
+            return [make(.warning, tr("Сессия «\(s.title)» потратила \(NumberText.compact(s.tokens)) токенов", "Session “\(s.title)” used \(NumberText.compact(s.tokens)) tokens"),
+                         tr("Большой расход токенов обычно значит, что агент перечитывает много контекста. Разбейте задачу на части.", "Heavy token use usually means the agent keeps rereading a lot of context. Split the task into smaller parts."),
+                         [.init(label: tr("Токены", "Tokens"), value: NumberText.compact(s.tokens)),
+                          .init(label: tr("Длительность", "Duration"), value: Duration.text(minutes: s.durationMinutes))],
                          suffix: ":\(s.id)")]
         }
     }
 
     static func autoResolution(_ s: Signal) -> String {
         switch s.kind {
-        case .uncommitted: "изменения закоммичены"
-        case .behindMain: "ветка догнала main"
-        case .agentReverts: "агент довёл задачу"
-        case .testsFailing: "тесты зелёные"
-        case .idle: "работа возобновилась"
-        case .skippedDay: "план обновлён"
-        case .tokens: "расход в норме"
+        case .uncommitted: tr("изменения закоммичены", "changes committed")
+        case .behindMain: tr("ветка догнала main", "branch caught up with main")
+        case .agentReverts: tr("агент довёл задачу", "agent finished the task")
+        case .testsFailing: tr("тесты зелёные", "tests are green")
+        case .idle: tr("работа возобновилась", "work resumed")
+        case .skippedDay: tr("план обновлён", "plan updated")
+        case .tokens: tr("расход в норме", "usage back to normal")
         }
     }
 

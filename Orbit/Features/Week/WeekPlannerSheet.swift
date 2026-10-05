@@ -16,16 +16,16 @@ struct WeekPlannerSheet: View {
         let capacity = app.config.rhythm.weeklyHours
         VStack(spacing: 0) {
             header(monday, capacity: capacity)
-            if let rationale = plan.rationale {
+            if let rationale = plan.currentRationale {
                 HStack(alignment: .top, spacing: 14) {
                     IconBox(symbol: "sparkles", color: Theme.accent, size: 36)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("План составлен по состоянию проектов").uiFont(13.5, .semibold)
+                        Text(tr("План составлен по состоянию проектов", "Planned from the state of your projects")).uiFont(13.5, .semibold)
                         Text(rationale).uiFont(13, color: Theme.text2).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
                             .contentTransition(.opacity)
                     }
                     Spacer()
-                    OrbitButton("Другой вариант", icon: "arrow.triangle.2.circlepath") {
+                    OrbitButton(tr("Другой вариант", "Another option"), icon: "arrow.triangle.2.circlepath") {
                         seed += 1
                         withMotion(Motion.page) { plan = app.makePlan(weekKey: weekKey, seed: seed) }
                     }
@@ -55,8 +55,8 @@ struct WeekPlannerSheet: View {
     private func header(_ monday: Date, capacity: Int) -> some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("План на неделю \(Week.number(monday))").uiFont(20, .semibold)
-                Text("\(DateFormat.short(monday)) — \(DateFormat.short(Week.day(6, of: monday))) · доступно \(capacity) ч")
+                Text(tr("План на неделю \(Week.number(monday))", "Plan for week \(Week.number(monday))")).uiFont(20, .semibold)
+                Text(tr("\(DateFormat.short(monday)) — \(DateFormat.short(Week.day(6, of: monday))) · доступно \(capacity) ч", "\(DateFormat.short(monday)) — \(DateFormat.short(Week.day(6, of: monday))) · \(capacity) h available"))
                     .uiFont(13, color: Theme.text2)
             }
             Spacer()
@@ -95,7 +95,7 @@ struct WeekPlannerSheet: View {
     private func grid(_ monday: Date) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Eyebrow(text: "Проект").frame(width: 250, alignment: .leading)
+                Eyebrow(text: tr("Проект", "Project")).frame(width: 250, alignment: .leading)
                 ForEach(0..<7, id: \.self) { d in
                     Text("\(Week.shortNames[d]) \(Week.calendar.component(.day, from: Week.day(d, of: monday)))")
                         .uiFont(12.5, .medium, color: app.config.rhythm.hours[d] == 0 ? Theme.text3 : Theme.text2)
@@ -115,10 +115,10 @@ struct WeekPlannerSheet: View {
             .frame(maxHeight: 420)
 
             HStack(spacing: 8) {
-                Text("Итого в день").uiFont(13, color: Theme.text2).frame(width: 250, alignment: .leading)
+                Text(tr("Итого в день", "Total per day")).uiFont(13, color: Theme.text2).frame(width: 250, alignment: .leading)
                 ForEach(0..<7, id: \.self) { d in
                     let h = plan.hours(on: d)
-                    Text(h == 0 ? "—" : "\(Duration.hours(h)) ч")
+                    Text(h == 0 ? "—" : tr("\(Duration.hours(h)) ч", "\(Duration.hours(h)) h"))
                         .monoFont(12.5, color: h > Double(app.config.rhythm.hours[d]) ? Theme.red : (h == 0 ? Theme.text3 : Theme.text))
                         .frame(maxWidth: .infinity)
                 }
@@ -166,7 +166,7 @@ struct WeekPlannerSheet: View {
                         Spacer()
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 7))
-                    Text("\(Duration.hours(hours)) ч").monoFont(13, .semibold, color: color)
+                    Text(tr("\(Duration.hours(hours)) ч", "\(Duration.hours(hours)) h")).monoFont(13, .semibold, color: color)
                         .numericTransition(hours)
                 }
             }
@@ -176,11 +176,11 @@ struct WeekPlannerSheet: View {
         .buttonStyle(PlainButtonStyle2())
         .contextMenu {
             ForEach([0, 1, 2, 3, 4, 5, 6, 7, 8], id: \.self) { h in
-                Button(h == 0 ? "Убрать" : "\(h) ч") { setHours(pid: pid, day: day, hours: Double(h)) }
+                Button(h == 0 ? tr("Убрать", "Remove") : tr("\(h) ч", "\(h) h")) { setHours(pid: pid, day: day, hours: Double(h)) }
             }
         }
         .frame(maxWidth: .infinity)
-        .help("Клик — добавить час, правый клик — выбрать")
+        .help(tr("Клик — добавить час, правый клик — выбрать", "Click to add an hour, right-click to choose"))
     }
 
     private func setHours(pid: String, day: Int, hours: Double) {
@@ -198,15 +198,15 @@ struct WeekPlannerSheet: View {
         return HStack(spacing: 14) {
             ProgressLine(fraction: capacity == 0 ? 0 : total / Double(capacity), color: total > Double(capacity) ? Theme.red : Theme.accent, height: 6)
                 .frame(width: 200)
-            Text("\(Duration.hours(total)) ч из \(capacity) ч" + (weekend ? " · выходные свободны" : "")).uiFont(13, color: Theme.text2)
+            Text(tr("\(Duration.hours(total)) ч из \(capacity) ч", "\(Duration.hours(total)) h of \(capacity) h") + (weekend ? tr(" · выходные свободны", " · weekend free") : "")).uiFont(13, color: Theme.text2)
             Spacer()
             if !plan.blocks.isEmpty {
-                OrbitButton("Очистить") { plan.blocks.removeAll(); plan.rationale = nil }
+                OrbitButton(tr("Очистить", "Clear")) { plan.blocks.removeAll(); plan.rationale = nil }
             }
-            OrbitButton("Отмена") { dismiss() }
-            OrbitButton("Сохранить план", icon: "checkmark", kind: .primary) {
+            OrbitButton(tr("Отмена", "Cancel")) { dismiss() }
+            OrbitButton(tr("Сохранить план", "Save plan"), icon: "checkmark", kind: .primary) {
                 app.savePlan(plan)
-                app.toast = "План на неделю \(Week.number(Week.date(fromKey: weekKey) ?? Date())) сохранён"
+                app.toast = tr("План на неделю \(Week.number(Week.date(fromKey: weekKey) ?? Date())) сохранён", "Plan for week \(Week.number(Week.date(fromKey: weekKey) ?? Date())) saved")
                 dismiss()
             }
         }
@@ -224,14 +224,14 @@ struct AddBlockSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Добавить проект на \(Week.shortNames[day])").uiFont(16, .semibold)
+            Text(tr("Добавить проект на \(Week.shortNames[day])", "Add a project to \(Week.shortNames[day])")).uiFont(16, .semibold)
             ForEach(app.config.activeProjects) { p in
                 Button { app.addBlock(projectId: p.id, day: day); dismiss() } label: {
                     ProjectLabel(projectId: p.id).frame(maxWidth: .infinity, alignment: .leading).padding(8)
                 }
                 .buttonStyle(PlainButtonStyle2())
             }
-            OrbitButton("Закрыть") { dismiss() }
+            OrbitButton(tr("Закрыть", "Close")) { dismiss() }
         }
         .padding(24)
         .frame(width: 360)

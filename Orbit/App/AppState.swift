@@ -19,7 +19,7 @@ enum NavDirection { case deeper, back, lateral }
 struct ProjectProgress: Hashable {
     enum Phase: Hashable { case queued, running, done }
     var phase: Phase = .queued
-    var detail = "в очереди"
+    var detail = tr("в очереди", "queued")
 }
 
 /// Sheets presented over the main window.
@@ -58,6 +58,9 @@ final class AppState {
     private(set) var snapshots: [String: ProjectSnapshot] = [:]
     private(set) var health: [String: Int] = [:]
     private(set) var healthHistory: [String: [Int]] = [:]
+
+    /// Bumped when the interface language changes; the window rebuilds from it.
+    var languageRevision = 0
 
     var screen: Screen = .week {
         didSet {
@@ -102,6 +105,7 @@ final class AppState {
 
     func load() {
         config = Store.load(OrbitConfig.self, from: "config.json") ?? OrbitConfig()
+        L10n.current = config.language.resolved
         // Rules added in later versions get their defaults.
         for kind in SignalRuleKind.allCases where !config.rules.contains(where: { $0.kind == kind }) {
             config.rules.append(SignalRuleConfig(kind: kind))
@@ -156,7 +160,7 @@ final class AppState {
                 result[id] = status
                 await MainActor.run {
                     if self.progress[id]?.phase != .done {
-                        self.progress[id] = ProjectProgress(phase: .running, detail: "git прочитан")
+                        self.progress[id] = ProjectProgress(phase: .running, detail: tr("git прочитан", "git read"))
                     }
                 }
             }
@@ -176,7 +180,7 @@ final class AppState {
         recompute()
         for p in projects {
             let score = health[p.id] ?? 0
-            progress[p.id] = ProjectProgress(phase: .done, detail: "\(score) · \(score >= 75 ? "хорошо" : score >= 50 ? "внимание" : "критично")")
+            progress[p.id] = ProjectProgress(phase: .done, detail: tr("\(score) · \(score >= 75 ? "хорошо" : score >= 50 ? "внимание" : "критично")", "\(score) · \(score >= 75 ? "good" : score >= 50 ? "attention" : "critical")"))
         }
         evaluateSignals()
         lastSync = Date()
@@ -236,7 +240,7 @@ final class AppState {
         if config.rhythm.morningBrief, config.notifyMacOS, hour >= 9, hour < 12, config.lastMorningBrief != todayKey {
             config.lastMorningBrief = todayKey
             saveConfig()
-            Notifier.post(title: "Orbit · утренняя сводка", body: morningBrief())
+            Notifier.post(title: tr("Orbit · утренняя сводка", "Orbit · morning brief"), body: morningBrief())
         }
 
         if config.rhythm.autoPlanSunday, Week.weekdayIndex(now) == 6, hour >= 20 {
@@ -248,7 +252,7 @@ final class AppState {
                 if plans[key]?.blocks.isEmpty ?? true {
                     plans[key] = makePlan(weekKey: key)
                     savePlans()
-                    Notifier.post(title: "Orbit · план на неделю \(Week.number(nextMonday))", body: "План составлен — проверьте и сохраните.")
+                    Notifier.post(title: tr("Orbit · план на неделю \(Week.number(nextMonday))", "Orbit · plan for week \(Week.number(nextMonday))"), body: tr("План составлен — проверьте и сохраните.", "The plan is ready — review and save it."))
                 }
             }
         }
@@ -258,14 +262,14 @@ final class AppState {
         let today = Week.weekdayIndex(now)
         let blocks = currentPlan.blocks(on: today)
         guard !blocks.isEmpty else {
-            return "На сегодня ничего не запланировано. Активных сигналов: \(activeSignals.count)."
+            return tr("На сегодня ничего не запланировано. Активных сигналов: \(activeSignals.count).", "Nothing planned for today. Active signals: \(activeSignals.count).")
         }
         var parts = blocks.map { b -> String in
             let name = projectName(b.projectId)
             let step = snapshots[b.projectId].map { nextSteps($0).first ?? "" } ?? ""
-            return "\(name) \(Duration.hours(b.hours)) ч — \(step)"
+            return tr("\(name) \(Duration.hours(b.hours)) ч — \(step)", "\(name) \(Duration.hours(b.hours)) h — \(step)")
         }
-        if !activeSignals.isEmpty { parts.append("Сигналов: \(activeSignals.count)") }
+        if !activeSignals.isEmpty { parts.append(tr("Сигналов: \(activeSignals.count)", "Signals: \(activeSignals.count)")) }
         return parts.joined(separator: "\n")
     }
 
@@ -342,36 +346,59 @@ final class AppState {
     }
 
     func aiCommitMessage(_ projectId: String) async throws -> String {
-        guard let provider = try AIProviders.make(config.ai) else { throw AIError.notConfigured("ИИ-анализ выключен") }
+        guard let provider = try AIProviders.make(config.ai) else { throw AIError.notConfigured(tr("ИИ-анализ выключен", "AI analysis is off")) }
         let repo = repos[projectId] ?? RepoStatus()
         let diff: String? = config.ai.sendDiffs ? await Task.detached { GitService.diff(projectId) }.value : nil
         let request = AnalysisService.commitRequest(project: projectName(projectId), changes: repo.changes, diff: diff,
                                                     sessions: snapshots[projectId]?.sessions ?? [])
         let obj = try await provider.complete(request)
-        guard let message = obj["message"] as? String, !message.trimmed.isEmpty else { throw AIError.badResponse("пустое сообщение") }
+        guard let message = obj["message"] as? String, !message.trimmed.isEmpty else { throw AIError.badResponse(tr("пустое сообщение", "empty message")) }
         return message.trimmed
     }
 
     func aiBrief(_ signalId: String) async throws -> String {
-        guard let provider = try AIProviders.make(config.ai) else { throw AIError.notConfigured("ИИ-анализ выключен") }
+        guard let provider = try AIProviders.make(config.ai) else { throw AIError.notConfigured(tr("ИИ-анализ выключен", "AI analysis is off")) }
         guard let signal = signals.first(where: { $0.id == signalId }), let snap = snapshots[signal.projectId] else {
-            throw AIError.notConfigured("Сигнал не найден")
+            throw AIError.notConfigured(tr("Сигнал не найден", "Signal not found"))
         }
         let obj = try await provider.complete(AnalysisService.briefRequest(signal: signal, snapshot: snap))
-        guard let brief = obj["brief"] as? String, !brief.trimmed.isEmpty else { throw AIError.badResponse("пустой бриф") }
+        guard let brief = obj["brief"] as? String, !brief.trimmed.isEmpty else { throw AIError.badResponse(tr("пустой бриф", "empty brief")) }
         return brief.trimmed
     }
 
     func testAI() async -> (ok: Bool, message: String) {
         do {
-            guard let provider = try AIProviders.make(config.ai) else { return (true, "Эвристики работают без модели") }
+            guard let provider = try AIProviders.make(config.ai) else { return (true, tr("Эвристики работают без модели", "Heuristics work without a model")) }
             let started = Date()
             let obj = try await provider.complete(AIProviders.testRequest)
             let reply = obj["reply"] as? String ?? "ok"
-            return (true, "\(provider.label) ответил «\(reply)» за \(String(format: "%.1f", Date().timeIntervalSince(started))) с")
+            return (true, tr("\(provider.label) ответил «\(reply)» за \(String(format: "%.1f", Date().timeIntervalSince(started))) с", "\(provider.label) replied “\(reply)” in \(String(format: "%.1f", Date().timeIntervalSince(started))) s"))
         } catch {
             return (false, error.localizedDescription)
         }
+    }
+
+    func setLanguage(_ language: AppLanguage) {
+        config.language = language
+        saveConfig()
+        // System menus (About, Hide, Quit) follow AppleLanguages and switch on the next launch.
+        if language == .system {
+            UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+        } else {
+            UserDefaults.standard.set([language.rawValue], forKey: "AppleLanguages")
+        }
+        applyLanguage()
+    }
+
+    /// Re-resolves the interface language and rebuilds everything that holds text.
+    func applyLanguage() {
+        let resolved = config.language.resolved
+        guard resolved != L10n.current else { return }
+        L10n.current = resolved
+        recompute()
+        evaluateSignals() // signal titles and details are generated text
+        languageRevision += 1
+        if config.ai.autoAnalyze { analyzeProjects() }
     }
 
     func setAIProvider(_ kind: AIProviderKind) {
@@ -382,8 +409,17 @@ final class AppState {
 
     // Results with heuristic fallback. AI answers are shown only while a model provider is selected.
 
-    func projectAI(_ id: String) -> ProjectAI? { config.ai.isEnabled ? aiCache.projects[id] : nil }
-    func sessionAI(_ id: String) -> SessionAI? { config.ai.isEnabled ? aiCache.sessions[id] : nil }
+    /// Cached answers are shown only in the language they were written in; otherwise the
+    /// heuristic text shows until the model answers again.
+    func projectAI(_ id: String) -> ProjectAI? {
+        guard config.ai.isEnabled, let ai = aiCache.projects[id], (ai.lang ?? "ru") == L10n.current.rawValue else { return nil }
+        return ai
+    }
+
+    func sessionAI(_ id: String) -> SessionAI? {
+        guard config.ai.isEnabled, let ai = aiCache.sessions[id], (ai.lang ?? "ru") == L10n.current.rawValue else { return nil }
+        return ai
+    }
 
     func headline(_ p: ProjectSnapshot) -> String { projectAI(p.config.id)?.headline ?? InsightEngine.headline(p) }
     func cardSummary(_ p: ProjectSnapshot) -> String { projectAI(p.config.id)?.summary ?? InsightEngine.cardSummary(p) }
@@ -424,7 +460,7 @@ final class AppState {
     /// Automatic checks respect the settings and skipped versions; a manual check always reports back.
     func checkForUpdates(manual: Bool = false) async {
         guard Updater.isEnabled else {
-            if manual { toast = "Обновления работают только в установленной версии Orbit" }
+            if manual { toast = tr("Обновления работают только в установленной версии Orbit", "Updates only work in an installed copy of Orbit") }
             return
         }
         guard manual || config.autoCheckUpdates else { return }
@@ -438,7 +474,7 @@ final class AppState {
             guard Updater.isNewer(release) else {
                 availableUpdate = nil
                 updatePhase = .upToDate
-                if manual { toast = "Установлена последняя версия — \(Updater.currentVersion)" }
+                if manual { toast = tr("Установлена последняя версия — \(Updater.currentVersion)", "You have the latest version — \(Updater.currentVersion)") }
                 return
             }
             if !manual && release.version == config.skippedVersion {
@@ -452,7 +488,7 @@ final class AppState {
             } else if config.notifiedUpdateVersion != release.version {
                 config.notifiedUpdateVersion = release.version
                 saveConfig()
-                Notifier.post(title: "Orbit \(release.version)", body: "Доступна новая версия — обновление займёт несколько секунд.")
+                Notifier.post(title: "Orbit \(release.version)", body: tr("Доступна новая версия — обновление займёт несколько секунд.", "A new version is available — updating takes a few seconds."))
             }
             #if DEBUG
             let args = ProcessInfo.processInfo.arguments
@@ -525,11 +561,11 @@ final class AppState {
 
     func addProject(path: String) {
         guard !config.projects.contains(where: { $0.path == path }) else {
-            toast = "Проект уже подключён"
+            toast = tr("Проект уже подключён", "Project already added")
             return
         }
         guard GitService.isRepo(path) else {
-            toast = "В папке нет git-репозитория"
+            toast = tr("В папке нет git-репозитория", "No git repository in that folder")
             return
         }
         let used = Set(config.projects.map(\.colorIndex))
@@ -681,7 +717,7 @@ final class AppState {
     func runGit(_ label: String, _ work: @escaping @Sendable () -> ShellResult) {
         Task {
             let r = await Task.detached { work() }.value
-            toast = r.ok ? label : "Ошибка: " + (r.stderr.isEmpty ? r.stdout : r.stderr).trimmingCharacters(in: .whitespacesAndNewlines).prefix(200)
+            toast = r.ok ? label : tr("Ошибка: ", "Error: ") + (r.stderr.isEmpty ? r.stdout : r.stderr).trimmingCharacters(in: .whitespacesAndNewlines).prefix(200)
             await refresh()
         }
     }
@@ -692,7 +728,7 @@ final class AppState {
             isSyncing = true
             let failures = await Task.detached { paths.filter { !GitService.fetch($0).ok }.count }.value
             isSyncing = false
-            toast = failures == 0 ? "Fetch выполнен для \(Plural.repos(paths.count))" : "Fetch: ошибок — \(failures)"
+            toast = failures == 0 ? tr("Fetch выполнен для \(Plural.repos(paths.count))", "Fetched \(Plural.repos(paths.count))") : tr("Fetch: ошибок — \(failures)", "Fetch: \(failures) failed")
             await refresh()
         }
     }

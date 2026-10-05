@@ -19,10 +19,10 @@ enum AIError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notConfigured(let m): m
-        case .cliMissing(let cli): "Не найден \(cli). Установите его и проверьте, что он запускается в терминале."
+        case .cliMissing(let cli): tr("Не найден \(cli). Установите его и проверьте, что он запускается в терминале.", "\(cli) not found. Install it and check that it runs in the terminal.")
         case .provider(let m): m
-        case .badResponse(let m): "Модель вернула неожиданный ответ: \(m)"
-        case .refused(let m): "Модель отказалась отвечать: \(m)"
+        case .badResponse(let m): tr("Модель вернула неожиданный ответ: \(m)", "The model returned an unexpected answer: \(m)")
+        case .refused(let m): tr("Модель отказалась отвечать: \(m)", "The model declined to answer: \(m)")
         }
     }
 }
@@ -45,7 +45,7 @@ enum AIProviders {
             return CodexProvider(model: model)
         case .anthropicAPI:
             guard let key = Keychain.get(.anthropic), !key.isEmpty else {
-                throw AIError.notConfigured("Добавьте ключ Anthropic API в настройках Orbit.")
+                throw AIError.notConfigured(tr("Добавьте ключ Anthropic API в настройках Orbit.", "Add an Anthropic API key in Orbit’s settings."))
             }
             return AnthropicProvider(apiKey: key, model: model, effort: config.effort)
         case .ollama:
@@ -59,30 +59,30 @@ enum AIProviders {
     static func availability(_ kind: AIProviderKind, config: AIConfig) async -> (ok: Bool, note: String) {
         switch kind {
         case .heuristics:
-            return (true, "всегда доступно")
+            return (true, tr("всегда доступно", "always available"))
         case .claudeCode:
             let path = await Task.detached { CLILocator.path(for: "claude") }.value
-            return path.map { (true, "найден: \($0.abbreviatingHome)") } ?? (false, "claude не установлен")
+            return path.map { (true, tr("найден: \($0.abbreviatingHome)", "found: \($0.abbreviatingHome)")) } ?? (false, tr("claude не установлен", "claude not installed"))
         case .codexCLI:
             let path = await Task.detached { CLILocator.path(for: "codex") }.value
-            return path.map { (true, "найден: \($0.abbreviatingHome)") } ?? (false, "codex не установлен")
+            return path.map { (true, tr("найден: \($0.abbreviatingHome)", "found: \($0.abbreviatingHome)")) } ?? (false, tr("codex не установлен", "codex not installed"))
         case .anthropicAPI:
-            return Keychain.get(.anthropic)?.isEmpty == false ? (true, "ключ сохранён") : (false, "нужен API-ключ")
+            return Keychain.get(.anthropic)?.isEmpty == false ? (true, tr("ключ сохранён", "key saved")) : (false, tr("нужен API-ключ", "API key needed"))
         case .openAICompatible:
-            return Keychain.get(.openAI)?.isEmpty == false ? (true, "ключ сохранён") : (false, "нужен API-ключ (для локальных серверов — не обязателен)")
+            return Keychain.get(.openAI)?.isEmpty == false ? (true, tr("ключ сохранён", "key saved")) : (false, tr("нужен API-ключ (для локальных серверов — не обязателен)", "API key needed (optional for local servers)"))
         case .ollama:
             let models = await OllamaProvider.installedModels(baseURL: config.ollamaURL)
-            if let models { return (true, models.isEmpty ? "запущена, моделей нет" : "моделей: \(models.count)") }
-            return (false, "не запущена на \(config.ollamaURL)")
+            if let models { return (true, models.isEmpty ? tr("запущена, моделей нет", "running, no models") : tr("моделей: \(models.count)", "models: \(models.count)")) }
+            return (false, tr("не запущена на \(config.ollamaURL)", "not running at \(config.ollamaURL)"))
         }
     }
 
-    static let testRequest = AIRequest(
-        system: "Отвечай по-русски.",
-        prompt: "Проверка связи. Ответь одним словом: готово.",
+    static var testRequest: AIRequest { AIRequest(
+        system: tr("Отвечай по-русски.", "Answer in English."),
+        prompt: tr("Проверка связи. Ответь одним словом: готово.", "Connection check. Reply with one word: ready."),
         schema: ["type": "object", "properties": ["reply": ["type": "string"]], "required": ["reply"], "additionalProperties": false],
         schemaName: "ping"
-    )
+    ) }
 }
 
 // MARK: - Claude Code (subscription)
@@ -113,12 +113,12 @@ struct ClaudeCodeProvider: AIProvider {
         guard let obj = JSONText.lastObject(in: result.stdout) else {
             let err = (result.stderr.isEmpty ? result.stdout : result.stderr).trimmingCharacters(in: .whitespacesAndNewlines)
             if err.localizedCaseInsensitiveContains("login") || err.localizedCaseInsensitiveContains("auth") {
-                throw AIError.provider("Claude Code не авторизован. Выполните `claude` в терминале и войдите в аккаунт с подпиской.")
+                throw AIError.provider(tr("Claude Code не авторизован. Выполните `claude` в терминале и войдите в аккаунт с подпиской.", "Claude Code isn’t signed in. Run `claude` in the terminal and sign in to your subscription account."))
             }
             throw AIError.provider("claude: \(err.prefix(300))")
         }
         if obj["is_error"] as? Bool == true {
-            throw AIError.provider("Claude Code: \((obj["result"] as? String ?? "ошибка").prefix(300))")
+            throw AIError.provider(tr("Claude Code: \((obj["result"] as? String ?? "ошибка").prefix(300))", "Claude Code: \((obj["result"] as? String ?? "error").prefix(300))"))
         }
         if let structured = obj["structured_output"] as? [String: Any] { return structured }
         if let text = obj["result"] as? String, let parsed = JSONText.firstObject(in: text) { return parsed }
@@ -201,7 +201,7 @@ struct AnthropicProvider: AIProvider {
         }
         if obj["stop_reason"] as? String == "refusal" {
             let details = obj["stop_details"] as? [String: Any]
-            throw AIError.refused(details?["explanation"] as? String ?? details?["category"] as? String ?? "без объяснения")
+            throw AIError.refused(details?["explanation"] as? String ?? details?["category"] as? String ?? tr("без объяснения", "no explanation"))
         }
         let blocks = obj["content"] as? [[String: Any]] ?? []
         let text = blocks.filter { $0["type"] as? String == "text" }.compactMap { $0["text"] as? String }.joined()
@@ -219,7 +219,7 @@ struct OllamaProvider: AIProvider {
 
     func complete(_ request: AIRequest) async throws -> [String: Any] {
         guard let url = URL(string: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/api/chat") else {
-            throw AIError.notConfigured("Неверный адрес Ollama: \(baseURL)")
+            throw AIError.notConfigured(tr("Неверный адрес Ollama: \(baseURL)", "Invalid Ollama address: \(baseURL)"))
         }
         let body: [String: Any] = [
             "model": model,
@@ -235,11 +235,11 @@ struct OllamaProvider: AIProvider {
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let data: Data, response: URLResponse
         do { (data, response) = try await URLSession.shared.data(for: req) } catch {
-            throw AIError.provider("Ollama недоступна на \(baseURL). Запустите `ollama serve`.")
+            throw AIError.provider(tr("Ollama недоступна на \(baseURL). Запустите `ollama serve`.", "Ollama isn’t reachable at \(baseURL). Run `ollama serve`."))
         }
         let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-            throw AIError.provider("Ollama: \(obj["error"] as? String ?? "ошибка запроса")")
+            throw AIError.provider(tr("Ollama: \(obj["error"] as? String ?? "ошибка запроса")", "Ollama: \(obj["error"] as? String ?? "request failed")"))
         }
         let text = (obj["message"] as? [String: Any])?["content"] as? String ?? ""
         guard let parsed = JSONText.firstObject(in: text) else { throw AIError.badResponse(String(text.prefix(200))) }
@@ -266,7 +266,7 @@ struct OpenAICompatibleProvider: AIProvider {
 
     func complete(_ request: AIRequest) async throws -> [String: Any] {
         guard let url = URL(string: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/chat/completions") else {
-            throw AIError.notConfigured("Неверный адрес API: \(baseURL)")
+            throw AIError.notConfigured(tr("Неверный адрес API: \(baseURL)", "Invalid API address: \(baseURL)"))
         }
         let body: [String: Any] = [
             "model": model,

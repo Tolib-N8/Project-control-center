@@ -17,22 +17,22 @@ struct SidebarView: View {
             .padding(.leading, 84 - 14)
 
             VStack(spacing: 2) {
-                navItem(.week, "Неделя", "calendar")
-                navItem(.projects, "Проекты", "square.grid.2x2")
-                navItem(.sessions, "Сессии агентов", "cpu")
+                navItem(.week, tr("Неделя", "Week"), "calendar")
+                navItem(.projects, tr("Проекты", "Projects"), "square.grid.2x2")
+                navItem(.sessions, tr("Сессии агентов", "Agent sessions"), "cpu")
                 navItem(.git, "Git", "arrow.triangle.branch")
-                navItem(.signals, "Сигналы", "bell", badge: app.activeSignals.count)
+                navItem(.signals, tr("Сигналы", "Signals"), "bell", badge: app.activeSignals.count)
             }
 
             VStack(spacing: 2) {
                 HStack {
-                    Eyebrow(text: "Проекты")
+                    Eyebrow(text: tr("Проекты", "Projects"))
                     Spacer()
                     Button(action: pickFolder) {
                         Image(systemName: "plus").font(.system(size: 12, weight: .medium)).foregroundStyle(Theme.text3)
                     }
                     .buttonStyle(PlainButtonStyle2())
-                    .help("Подключить репозиторий")
+                    .help(tr("Подключить репозиторий", "Add repository"))
                 }
                 .padding(.horizontal, 10)
                 .padding(.bottom, 6)
@@ -128,10 +128,10 @@ struct SidebarView: View {
         .buttonStyle(PlainButtonStyle2())
         .draggable(PlanDragItem(projectId: p.id))
         .contextMenu {
-            Button("Открыть в терминале") { app.openTerminal(p.id) }
-            Button("Показать в Finder") { Shell.reveal(p.path) }
+            Button(tr("Открыть в терминале", "Open in Terminal")) { app.openTerminal(p.id) }
+            Button(tr("Показать в Finder", "Show in Finder")) { Shell.reveal(p.path) }
             Divider()
-            Button("В архив") { app.updateProject(p.id) { $0.archived = true } }
+            Button(tr("В архив", "Archive")) { app.updateProject(p.id) { $0.archived = true } }
         }
     }
 
@@ -141,11 +141,11 @@ struct SidebarView: View {
                 HStack(spacing: 8) {
                     if app.aiBusy.isEmpty {
                         Image(systemName: "exclamationmark.triangle").font(.system(size: 10)).foregroundStyle(Theme.yellow)
-                        Text("Ошибка ИИ-анализа").uiFont(12, .medium, color: Theme.yellow)
+                        Text(tr("Ошибка ИИ-анализа", "AI analysis error")).uiFont(12, .medium, color: Theme.yellow)
                     } else {
                         Image(systemName: "sparkles").font(.system(size: 10)).foregroundStyle(Theme.accent)
                             .symbolEffect(.pulse, options: .repeating, isActive: !Motion.reduced)
-                        Text("ИИ-анализ · \(app.aiBusy.count)").uiFont(12, .medium).numericTransition(app.aiBusy.count)
+                        Text(tr("ИИ-анализ · \(app.aiBusy.count)", "AI analysis · \(app.aiBusy.count)")).uiFont(12, .medium).numericTransition(app.aiBusy.count)
                     }
                 }
                 .help(app.aiError ?? "")
@@ -160,7 +160,7 @@ struct SidebarView: View {
                 } else {
                     Dot(color: app.lastSync == nil ? Theme.text3 : Theme.green).transition(.opacity)
                 }
-                Text(app.isSyncing ? "Синхронизация…" : app.lastSync == nil ? "Ожидание" : "Синхронизировано")
+                Text(app.isSyncing ? tr("Синхронизация…", "Syncing…") : app.lastSync == nil ? tr("Ожидание", "Waiting") : tr("Синхронизировано", "Synced"))
                     .uiFont(12, .medium)
                     .contentTransition(.opacity)
             }
@@ -173,10 +173,10 @@ struct SidebarView: View {
                     Image(systemName: "gearshape").font(.system(size: 12)).foregroundStyle(Theme.text3)
                 }
                 .buttonStyle(PlainButtonStyle2())
-                .help("Настройки (⌘,)")
+                .help(tr("Настройки (⌘,)", "Settings (⌘,)"))
             }
             if let label = app.aiLabel {
-                Text("Анализ: \(label)").uiFont(11.5, color: Theme.text3)
+                Text(tr("Анализ: \(label)", "Analysis: \(label)")).uiFont(11.5, color: Theme.text3)
             }
         }
         .padding(12)
@@ -184,11 +184,11 @@ struct SidebarView: View {
         .background(Theme.surface2, in: RoundedRectangle(cornerRadius: 8))
         .animation(Motion.pick(Motion.snappy), value: app.aiBusy.isEmpty && app.aiError == nil)
         .onTapGesture { Task { await app.refresh() } }
-        .help("Обновить сейчас")
+        .help(tr("Обновить сейчас", "Refresh now"))
     }
 
     private func pickFolder() {
-        if let path = FolderPicker.pick(message: "Выберите папку с git-репозиторием") {
+        if let path = FolderPicker.pick(message: tr("Выберите папку с git-репозиторием", "Choose a folder with a git repository")) {
             app.addProject(path: path)
         }
     }

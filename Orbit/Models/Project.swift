@@ -72,6 +72,7 @@ struct OrbitConfig: Codable {
     var autoInstallUpdates = false
     var skippedVersion: String?
     var notifiedUpdateVersion: String?
+    var language: AppLanguage = .system
 
     init() {}
 
@@ -94,6 +95,8 @@ struct OrbitConfig: Codable {
         autoInstallUpdates = try c.decodeIfPresent(Bool.self, forKey: .autoInstallUpdates) ?? d.autoInstallUpdates
         skippedVersion = try c.decodeIfPresent(String.self, forKey: .skippedVersion)
         notifiedUpdateVersion = try c.decodeIfPresent(String.self, forKey: .notifiedUpdateVersion)
+        // Configs from before the English interface existed keep Russian, even on an English macOS.
+        language = try c.decodeIfPresent(AppLanguage.self, forKey: .language) ?? (onboarded ? .ru : .system)
     }
 
     func source(_ kind: AgentKind) -> AgentSourceConfig {

@@ -14,10 +14,10 @@ struct GitView: View {
     var body: some View {
         let snaps = app.activeSnapshots
         Page {
-            PageHeader(eyebrow: "\(Plural.repos(snaps.count)) · обновлено \(app.lastSync.map { DateFormat.ago($0, now: app.now) } ?? "—")", title: "Git") {
-                OrbitButton("Fetch всех", icon: "arrow.down.to.line") { app.fetchAll() }
+            PageHeader(eyebrow: tr("\(Plural.repos(snaps.count)) · обновлено \(app.lastSync.map { DateFormat.ago($0, now: app.now) } ?? "—")", "\(Plural.repos(snaps.count)) · updated \(app.lastSync.map { DateFormat.ago($0, now: app.now) } ?? "—")"), title: "Git") {
+                OrbitButton(tr("Fetch всех", "Fetch all"), icon: "arrow.down.to.line") { app.fetchAll() }
                 let dirty = snaps.filter { !$0.repo.changes.isEmpty }
-                MenuChip(icon: "point.topleft.down.to.point.bottomright.curvepath", title: "Закоммитить", kind: .primary) {
+                MenuChip(icon: "point.topleft.down.to.point.bottomright.curvepath", title: tr("Закоммитить", "Commit"), kind: .primary) {
                     ForEach(dirty, id: \.config.id) { s in
                         Button("\(s.config.name) — \(Plural.files(s.repo.changes.count))") { app.sheet = .commit(projectId: s.config.id) }
                     }
@@ -38,13 +38,13 @@ struct GitView: View {
                 Card(padding: 20) {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
-                            Text("Открытые PR").uiFont(14, .semibold)
+                            Text(tr("Открытые PR", "Open PRs")).uiFont(14, .semibold)
                             Spacer()
-                            Text("скоро").uiFont(12.5, color: Theme.text3)
+                            Text(tr("скоро", "soon")).uiFont(12.5, color: Theme.text3)
                         }
                         Rectangle().fill(Theme.border).frame(height: 1)
-                        EmptyHint(symbol: "arrow.triangle.pull", title: "GitHub ещё не подключён",
-                                  text: "PR и статусы CI появятся во второй фазе — через gh CLI. Пока колонка «Тесты» берёт результат последнего прогона из сессий агентов.")
+                        EmptyHint(symbol: "arrow.triangle.pull", title: tr("GitHub ещё не подключён", "GitHub isn’t connected yet"),
+                                  text: tr("PR и статусы CI появятся во второй фазе — через gh CLI. Пока колонка «Тесты» берёт результат последнего прогона из сессий агентов.", "Pull requests and CI status are coming via the gh CLI. Until then the Tests column shows the last test run from agent sessions."))
                     }
                 }
                 abandoned(snaps)
@@ -53,12 +53,12 @@ struct GitView: View {
         }
         .alert(item: $confirm) { action in
             Alert(
-                title: Text(action.delete ? "Удалить ветку \(action.branch)?" : "Rebase \(action.branch) на main?"),
+                title: Text(action.delete ? tr("Удалить ветку \(action.branch)?", "Delete branch \(action.branch)?") : tr("Rebase \(action.branch) на main?", "Rebase \(action.branch) onto main?")),
                 message: Text(action.delete
-                              ? "Будет выполнено git branch -d — Git откажется удалять несмерженную ветку."
-                              : "Orbit переключится на ветку, выполнит rebase и вернётся обратно. При конфликтах rebase будет отменён."),
-                primaryButton: action.delete ? .destructive(Text("Удалить")) { run(action) } : .default(Text("Rebase")) { run(action) },
-                secondaryButton: .cancel(Text("Отмена"))
+                              ? tr("Будет выполнено git branch -d — Git откажется удалять несмерженную ветку.", "This runs git branch -d — Git refuses to delete an unmerged branch.")
+                              : tr("Orbit переключится на ветку, выполнит rebase и вернётся обратно. При конфликтах rebase будет отменён.", "Orbit switches to the branch, rebases it and switches back. On conflicts the rebase is aborted.")),
+                primaryButton: action.delete ? .destructive(Text(tr("Удалить", "Delete"))) { run(action) } : .default(Text("Rebase")) { run(action) },
+                secondaryButton: .cancel(Text(tr("Отмена", "Cancel")))
             )
         }
     }
@@ -66,9 +66,9 @@ struct GitView: View {
     private func run(_ action: BranchAction) {
         let repo = action.projectId, branch = action.branch
         if action.delete {
-            app.runGit("Ветка \(branch) удалена") { GitService.deleteBranch(repo, branch) }
+            app.runGit(tr("Ветка \(branch) удалена", "Branch \(branch) deleted")) { GitService.deleteBranch(repo, branch) }
         } else if let main = app.repos[repo]?.mainBranch {
-            app.runGit("Rebase \(branch) выполнен") { GitService.rebase(repo, branch: branch, onto: main) }
+            app.runGit(tr("Rebase \(branch) выполнен", "Rebased \(branch)")) { GitService.rebase(repo, branch: branch, onto: main) }
         }
     }
 
@@ -81,12 +81,12 @@ struct GitView: View {
         let behind = snaps.filter { $0.repo.behindMain >= 20 }.count
         return Card(padding: 20) {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Итого за 14 дней").uiFont(14, .semibold)
-                totalRow("Коммитов", "\(commits.count)")
-                totalRow("От агентов", commits.isEmpty ? "0" : "\(agents) · \(agents * 100 / max(commits.count, 1))%", color: Theme.violet)
-                totalRow("Незакоммичено", files == 0 ? "чисто" : "\(Plural.files(files)) в \(dirty.count) репо", color: files == 0 ? Theme.text : Theme.yellow)
-                totalRow("Падающие тесты", failing == 0 ? "нет" : Plural.repos(failing), color: failing == 0 ? Theme.text : Theme.red)
-                totalRow("Отстают от main", behind == 0 ? "нет" : Plural.repos(behind), color: behind == 0 ? Theme.text : Theme.red)
+                Text(tr("Итого за 14 дней", "Last 14 days")).uiFont(14, .semibold)
+                totalRow(tr("Коммитов", "Commits"), "\(commits.count)")
+                totalRow(tr("От агентов", "By agents"), commits.isEmpty ? "0" : "\(agents) · \(agents * 100 / max(commits.count, 1))%", color: Theme.violet)
+                totalRow(tr("Незакоммичено", "Uncommitted"), files == 0 ? tr("чисто", "clean") : tr("\(Plural.files(files)) в \(dirty.count) репо", "\(Plural.files(files)) in \(Plural.repos(dirty.count))"), color: files == 0 ? Theme.text : Theme.yellow)
+                totalRow(tr("Падающие тесты", "Failing tests"), failing == 0 ? tr("нет", "none") : Plural.repos(failing), color: failing == 0 ? Theme.text : Theme.red)
+                totalRow(tr("Отстают от main", "Behind main"), behind == 0 ? tr("нет", "none") : Plural.repos(behind), color: behind == 0 ? Theme.text : Theme.red)
             }
         }
     }
@@ -102,12 +102,12 @@ struct GitView: View {
     private func repoTable(_ snaps: [ProjectSnapshot]) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 16) {
-                Eyebrow(text: "Репозиторий").frame(width: 180, alignment: .leading)
-                Eyebrow(text: "Ветка").frame(width: 170, alignment: .leading)
+                Eyebrow(text: tr("Репозиторий", "Repository")).frame(width: 180, alignment: .leading)
+                Eyebrow(text: tr("Ветка", "Branch")).frame(width: 170, alignment: .leading)
                 Eyebrow(text: "↑ / ↓").frame(width: 110, alignment: .leading)
-                Eyebrow(text: "Последний коммит").frame(maxWidth: .infinity, alignment: .leading)
-                Eyebrow(text: "Изменения").frame(width: 120, alignment: .leading)
-                Eyebrow(text: "Тесты").frame(width: 90, alignment: .leading)
+                Eyebrow(text: tr("Последний коммит", "Last commit")).frame(maxWidth: .infinity, alignment: .leading)
+                Eyebrow(text: tr("Изменения", "Changes")).frame(width: 120, alignment: .leading)
+                Eyebrow(text: tr("Тесты", "Tests")).frame(width: 90, alignment: .leading)
             }
             .padding(.horizontal, 20).padding(.vertical, 14)
             .hairline()
@@ -143,7 +143,7 @@ struct GitView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(r.lastCommit?.subject ?? "—").uiFont(13.5).lineLimit(1)
                 if let c = r.lastCommit {
-                    Text("\(c.agent?.title ?? "вы") · \(DateFormat.relativeDay(c.date, withTime: false))").uiFont(12, color: Theme.text3)
+                    Text(tr("\(c.agent?.title ?? "вы") · \(DateFormat.relativeDay(c.date, withTime: false))", "\(c.agent?.title ?? "you") · \(DateFormat.relativeDay(c.date, withTime: false))")).uiFont(12, color: Theme.text3)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -153,10 +153,10 @@ struct GitView: View {
             HStack(spacing: 6) {
                 if let _ = s.testsTotal {
                     Dot(color: s.testsFailing > 0 ? Theme.red : Theme.green)
-                    Text(s.testsFailing > 0 ? "\(s.testsFailing) ✗" : "Ок").uiFont(13.5, color: s.testsFailing > 0 ? Theme.red : Theme.text2)
+                    Text(s.testsFailing > 0 ? "\(s.testsFailing) ✗" : tr("Ок", "OK")).uiFont(13.5, color: s.testsFailing > 0 ? Theme.red : Theme.text2)
                 } else {
                     Dot(color: Theme.text3)
-                    Text("нет").uiFont(13.5, color: Theme.text3)
+                    Text(tr("нет", "none")).uiFont(13.5, color: Theme.text3)
                 }
             }
             .frame(width: 90, alignment: .leading)
@@ -170,13 +170,13 @@ struct GitView: View {
         return Card(padding: 20) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Text("Заброшенные ветки").uiFont(14, .semibold)
+                    Text(tr("Заброшенные ветки", "Stale branches")).uiFont(14, .semibold)
                     Spacer()
-                    Text("> 7 дней без коммитов").uiFont(12.5, color: Theme.text3)
+                    Text(tr("> 7 дней без коммитов", "> 7 days without commits")).uiFont(12.5, color: Theme.text3)
                 }
                 Rectangle().fill(Theme.border).frame(height: 1)
                 if items.isEmpty {
-                    Text("Все ветки свежие").uiFont(13, color: Theme.text3).padding(.vertical, 12)
+                    Text(tr("Все ветки свежие", "All branches are fresh")).uiFont(13, color: Theme.text3).padding(.vertical, 12)
                 }
                 ForEach(items.prefix(6), id: \.1.name) { s, b in
                     let days = Int(app.now.timeIntervalSince(b.lastCommit) / 86400)
@@ -184,13 +184,13 @@ struct GitView: View {
                         Image(systemName: "arrow.triangle.branch").foregroundStyle(Theme.text3)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(b.name).monoFont(13.5).lineLimit(1)
-                            Text("\(s.config.name) · " + (b.merged ? "смержена" : b.behindMain > 0 ? "отстала на \(b.behindMain)" : "не смержена"))
+                            Text("\(s.config.name) · " + (b.merged ? tr("смержена", "merged") : b.behindMain > 0 ? tr("отстала на \(b.behindMain)", "\(b.behindMain) behind") : tr("не смержена", "not merged")))
                                 .uiFont(12.5, color: Theme.text3)
                         }
                         Spacer()
-                        Text("\(days) дн.").uiFont(13, color: Theme.yellow)
+                        Text(tr("\(days) дн.", "\(days) d")).uiFont(13, color: Theme.yellow)
                         if b.merged {
-                            OrbitButton("Удалить", compact: true) { confirm = BranchAction(projectId: s.config.id, branch: b.name, delete: true) }
+                            OrbitButton(tr("Удалить", "Delete"), compact: true) { confirm = BranchAction(projectId: s.config.id, branch: b.name, delete: true) }
                         } else {
                             OrbitButton("Rebase", compact: true) { confirm = BranchAction(projectId: s.config.id, branch: b.name, delete: false) }
                         }
@@ -222,10 +222,10 @@ struct CommitChart: View {
         Card(padding: 20) {
             VStack(alignment: .leading, spacing: 20) {
                 HStack {
-                    Text("Коммиты за 14 дней").uiFont(14, .semibold)
+                    Text(tr("Коммиты за 14 дней", "Commits, last 14 days")).uiFont(14, .semibold)
                     Spacer()
-                    legend(Theme.violet, "Агенты")
-                    legend(Theme.text3, "Вы")
+                    legend(Theme.violet, tr("Агенты", "Agents"))
+                    legend(Theme.text3, tr("Вы", "You"))
                 }
                 HStack(alignment: .bottom, spacing: 10) {
                     ForEach(data, id: \.0) { d, agents, you in
@@ -248,7 +248,7 @@ struct CommitChart: View {
                             .frame(height: 130)
                             // Columns rise one after another, left to right.
                             .animation(Motion.pick(Motion.grow).delay(Motion.reduced ? 0 : Double(data.firstIndex { $0.0 == d } ?? 0) * 0.025), value: grown)
-                            .help("\(DateFormat.short(d)): агенты \(agents), вы \(you)")
+                            .help(tr("\(DateFormat.short(d)): агенты \(agents), вы \(you)", "\(DateFormat.short(d)): agents \(agents), you \(you)"))
                             Text("\(cal.component(.day, from: d))").monoFont(11.5, color: isToday ? Theme.accent : Theme.text3)
                         }
                         .frame(maxWidth: .infinity)
@@ -294,7 +294,7 @@ enum CommitMessage {
 
         let recent = sessions.first { Date().timeIntervalSince($0.end) < 2 * 86400 }
         var subject = recent.map { $0.title.prefix(1).lowercased() + $0.title.dropFirst() }
-            ?? "обновить \(Plural.files(changes.count))"
+            ?? tr("обновить \(Plural.files(changes.count))", "update \(Plural.files(changes.count))")
         if subject.count > 60 { subject = String(subject.prefix(57)) + "…" }
 
         let body = changes.prefix(12).map { "- \($0.status) \($0.path)" }.joined(separator: "\n")
@@ -316,12 +316,12 @@ struct CommitSheet: View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Коммит · \(app.projectName(projectId))").uiFont(18, .semibold)
-                    Text("ветка \(repo.branch) · сообщение составлено по файлам и последней сессии").uiFont(12.5, color: Theme.text2)
+                    Text(tr("Коммит · \(app.projectName(projectId))", "Commit · \(app.projectName(projectId))")).uiFont(18, .semibold)
+                    Text(tr("ветка \(repo.branch) · сообщение составлено по файлам и последней сессии", "branch \(repo.branch) · message drafted from the files and the last session")).uiFont(12.5, color: Theme.text2)
                 }
                 Spacer()
                 if app.config.ai.isEnabled {
-                    OrbitButton(generating ? "Пишу…" : "Сгенерировать с ИИ", icon: "sparkles") { generate() }
+                    OrbitButton(generating ? tr("Пишу…", "Writing…") : tr("Сгенерировать с ИИ", "Generate with AI"), icon: "sparkles") { generate() }
                         .disabled(generating)
                 }
             }
@@ -347,12 +347,12 @@ struct CommitSheet: View {
                 .background(Theme.bg, in: RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.border))
             HStack {
-                Toggle("Запушить после коммита", isOn: $push).toggleStyle(.checkbox).disabled(repo.upstream == nil)
+                Toggle(tr("Запушить после коммита", "Push after committing"), isOn: $push).toggleStyle(.checkbox).disabled(repo.upstream == nil)
                 Spacer()
-                OrbitButton("Отмена") { dismiss() }
-                OrbitButton("Закоммитить \(selected.count)", icon: "checkmark", kind: .primary) {
+                OrbitButton(tr("Отмена", "Cancel")) { dismiss() }
+                OrbitButton(tr("Закоммитить \(selected.count)", "Commit \(selected.count)"), icon: "checkmark", kind: .primary) {
                     let files = Array(selected), msg = message, shouldPush = push
-                    app.runGit(shouldPush ? "Закоммичено и запушено" : "Закоммичено") {
+                    app.runGit(shouldPush ? tr("Закоммичено и запушено", "Committed and pushed") : tr("Закоммичено", "Committed")) {
                         GitService.commit(projectId, files: files, message: msg, push: shouldPush)
                     }
                     dismiss()
@@ -390,10 +390,10 @@ struct DiffSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("Дифф · \(app.projectName(projectId))").uiFont(16, .semibold)
+                Text(tr("Дифф · \(app.projectName(projectId))", "Diff · \(app.projectName(projectId))")).uiFont(16, .semibold)
                 Spacer()
-                OrbitButton("Закоммитить", kind: .primary) { app.sheet = .commit(projectId: projectId) }
-                OrbitButton("Закрыть") { dismiss() }
+                OrbitButton(tr("Закоммитить", "Commit"), kind: .primary) { app.sheet = .commit(projectId: projectId) }
+                OrbitButton(tr("Закрыть", "Close")) { dismiss() }
             }
             .padding(20).hairline()
             ScrollView([.vertical, .horizontal]) {

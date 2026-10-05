@@ -16,7 +16,14 @@ struct WeekPlan: Codable, Hashable {
     var weekKey: String
     var blocks: [PlanBlock] = []
     var rationale: String?
+    /// Language the rationale was written in; nil means Russian (plans before 0.7).
+    var rationaleLang: String?
     var generated = false
+
+    /// The rationale, only if it matches the interface language.
+    var currentRationale: String? {
+        (rationaleLang ?? "ru") == L10n.current.rawValue ? rationale : nil
+    }
 
     func blocks(on day: Int) -> [PlanBlock] { blocks.filter { $0.day == day } }
     func hours(on day: Int) -> Double { blocks(on: day).reduce(0) { $0 + $1.hours } }
@@ -55,5 +62,7 @@ enum Week {
 
     static func number(_ date: Date) -> Int { calendar.component(.weekOfYear, from: date) }
 
-    static let shortNames = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+    static var shortNames: [String] {
+        tr("Пн Вт Ср Чт Пт Сб Вс", "Mon Tue Wed Thu Fri Sat Sun").split(separator: " ").map(String.init)
+    }
 }

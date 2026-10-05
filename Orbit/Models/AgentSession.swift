@@ -20,10 +20,10 @@ enum SessionStatus: String, Codable, Hashable {
 
     var title: String {
         switch self {
-        case .active: "Идёт"
-        case .done: "Готово"
-        case .unfinished: "Не завершено"
-        case .rolledBack: "Откат"
+        case .active: tr("Идёт", "Running")
+        case .done: tr("Готово", "Done")
+        case .unfinished: tr("Не завершено", "Unfinished")
+        case .rolledBack: tr("Откат", "Rolled back")
         }
     }
 }

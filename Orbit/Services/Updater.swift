@@ -50,12 +50,12 @@ enum UpdateError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .badResponse(let m): "Не удалось проверить обновления: \(m)"
-        case .noAsset: "В релизе нет архива приложения."
-        case .noChecksum: "У архива в релизе нет контрольной суммы — установка отменена."
-        case .checksumMismatch: "Архив повреждён: контрольная сумма не совпадает. Установка отменена."
-        case .invalidBundle(let m): "Скачанное приложение не прошло проверку: \(m)"
-        case .notWritable(let path): "Нет прав на запись в \(path). Переместите Orbit в «Программы»."
+        case .badResponse(let m): tr("Не удалось проверить обновления: \(m)", "Couldn’t check for updates: \(m)")
+        case .noAsset: tr("В релизе нет архива приложения.", "The release has no app archive.")
+        case .noChecksum: tr("У архива в релизе нет контрольной суммы — установка отменена.", "The release archive has no checksum — installation cancelled.")
+        case .checksumMismatch: tr("Архив повреждён: контрольная сумма не совпадает. Установка отменена.", "The archive is damaged: checksum mismatch. Installation cancelled.")
+        case .invalidBundle(let m): tr("Скачанное приложение не прошло проверку: \(m)", "The downloaded app failed verification: \(m)")
+        case .notWritable(let path): tr("Нет прав на запись в \(path). Переместите Orbit в «Программы».", "No write access to \(path). Move Orbit to Applications.")
         case .blocked(let reason): reason
         }
     }
@@ -90,7 +90,7 @@ enum Updater {
     /// nil when the app can replace itself where it runs; otherwise the reason.
     static var installBlocker: String? {
         let bundle = Bundle.main.bundlePath
-        if bundle.contains("/AppTranslocation/") { return "Orbit запущен из временной папки macOS — переместите его в «Программы»." }
+        if bundle.contains("/AppTranslocation/") { return tr("Orbit запущен из временной папки macOS — переместите его в «Программы».", "Orbit is running from a temporary macOS folder — move it to Applications.") }
         let parent = (bundle as NSString).deletingLastPathComponent
         let fm = FileManager.default
         guard fm.isWritableFile(atPath: parent), fm.isWritableFile(atPath: bundle) else {
@@ -108,7 +108,7 @@ enum Updater {
         req.setValue("Orbit/\(currentVersion)", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await URLSession.shared.data(for: req)
         if let http = response as? HTTPURLResponse, http.statusCode != 200 {
-            throw UpdateError.badResponse("GitHub ответил \(http.statusCode)")
+            throw UpdateError.badResponse(tr("GitHub ответил \(http.statusCode)", "GitHub returned \(http.statusCode)"))
         }
         return try parse(data)
     }
@@ -116,7 +116,7 @@ enum Updater {
     static func parse(_ data: Data) throws -> ReleaseInfo {
         guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let tag = obj["tag_name"] as? String else {
-            throw UpdateError.badResponse("неожиданный ответ")
+            throw UpdateError.badResponse(tr("неожиданный ответ", "unexpected response"))
         }
         let assets = obj["assets"] as? [[String: Any]] ?? []
         guard let asset = assets.first(where: { ($0["name"] as? String)?.range(of: assetPattern, options: .regularExpression) != nil }),
@@ -155,7 +155,7 @@ enum Updater {
         try verifyChecksum(of: zip, expected: release.sha256)
 
         let unzip = await Task.detached { Shell.run("/usr/bin/ditto", ["-x", "-k", zip.path, staging.path]) }.value
-        guard unzip.ok else { throw UpdateError.invalidBundle("не удалось распаковать архив") }
+        guard unzip.ok else { throw UpdateError.invalidBundle(tr("не удалось распаковать архив", "couldn’t unpack the archive")) }
         let newApp = staging.appendingPathComponent("Orbit.app")
         try validate(newApp, expectedVersion: release.version)
 
@@ -171,9 +171,9 @@ enum Updater {
                 observation?.invalidate()
                 if let error { return cont.resume(throwing: error) }
                 if let http = response as? HTTPURLResponse, http.statusCode != 200 {
-                    return cont.resume(throwing: UpdateError.badResponse("загрузка вернула \(http.statusCode)"))
+                    return cont.resume(throwing: UpdateError.badResponse(tr("загрузка вернула \(http.statusCode)", "download returned \(http.statusCode)")))
                 }
-                guard let tmp else { return cont.resume(throwing: UpdateError.badResponse("пустой ответ")) }
+                guard let tmp else { return cont.resume(throwing: UpdateError.badResponse(tr("пустой ответ", "empty response"))) }
                 do {
                     try? FileManager.default.removeItem(at: destination)
                     try FileManager.default.moveItem(at: tmp, to: destination)
@@ -196,19 +196,19 @@ enum Updater {
 
     static func validate(_ app: URL, expectedVersion: String) throws {
         guard let info = NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist")) else {
-            throw UpdateError.invalidBundle("нет Info.plist")
+            throw UpdateError.invalidBundle(tr("нет Info.plist", "no Info.plist"))
         }
         let bundleId = info["CFBundleIdentifier"] as? String
         guard bundleId == (Bundle.main.bundleIdentifier ?? "dev.tolib.orbit") else {
-            throw UpdateError.invalidBundle("чужой идентификатор \(bundleId ?? "—")")
+            throw UpdateError.invalidBundle(tr("чужой идентификатор \(bundleId ?? "—")", "foreign bundle identifier \(bundleId ?? "—")"))
         }
         let version = info["CFBundleShortVersionString"] as? String ?? ""
-        guard version == expectedVersion else { throw UpdateError.invalidBundle("версия \(version) вместо \(expectedVersion)") }
+        guard version == expectedVersion else { throw UpdateError.invalidBundle(tr("версия \(version) вместо \(expectedVersion)", "version \(version) instead of \(expectedVersion)")) }
         guard let v = SemVer(version), let c = SemVer(currentVersion), v > c else {
-            throw UpdateError.invalidBundle("версия \(version) не новее текущей")
+            throw UpdateError.invalidBundle(tr("версия \(version) не новее текущей", "version \(version) is not newer than the current one"))
         }
         let sign = Shell.run("/usr/bin/codesign", ["--verify", "--deep", app.path])
-        guard sign.ok else { throw UpdateError.invalidBundle("подпись не прошла проверку") }
+        guard sign.ok else { throw UpdateError.invalidBundle(tr("подпись не прошла проверку", "code signature check failed")) }
     }
 
     /// A detached script waits for Orbit to quit, keeps the old copy as a backup, puts the new
