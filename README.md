@@ -61,7 +61,7 @@ Claude Code, Codex and Aider: what got done, where the agent got stuck, tokens, 
 <td valign="top">
 
 ### 🌿 Git
-Branches, ahead/behind, drift from `main` and conflicts, an "agents vs. you" commit chart, stale branches. Commit with a ready-made message without leaving the app.
+Branches, ahead/behind, drift from `main` and conflicts, an "agents vs. you" commit chart, stale branches. Commit with a ready-made message without leaving the app. With the GitHub CLI signed in, open pull requests show up with the one status that matters — *ready to merge*, *needs your review*, *CI failing* — and every repo gets its GitHub Actions state.
 
 </td>
 </tr>
@@ -163,6 +163,7 @@ Everything is read **locally**; app state lives in `~/.orbit`.
 | **Aider** sessions | `.aider.chat.history.md` in the repository root |
 | Health, plan, signals | local heuristics — `Orbit/Services` |
 | Tasks | your own list, stored in `~/.orbit/tasks.json` |
+| Pull requests and CI | `gh pr list` and `gh run list` with your GitHub CLI account (optional) |
 | Summaries, next steps, session breakdowns | the model you chose — `Orbit/Services/AI` — or heuristics |
 
 Logs are parsed once and cached by file size and modification time, so a refresh takes about a second.
@@ -269,7 +270,7 @@ Each release ships two files: the styled **`.dmg`** for people (built by `script
 - [x] **0.7** — English interface, live language switching
 - [x] **0.8** — tasks on the project page
 - [x] **0.9** — hand a task to Claude Code or Codex with one click, break a goal into tasks with AI, a motion for every icon
-- [ ] GitHub: open pull requests and CI status via `gh`
+- [x] **1.0** — GitHub: open pull requests and CI status via `gh`
 - [ ] Notifications in Telegram and by email
 - [ ] Cursor chat history
 - [ ] Apple notarization

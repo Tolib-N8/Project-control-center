@@ -56,6 +56,11 @@ final class AppState {
     var plans: [String: WeekPlan] = [:]
     var signals: [Signal] = []
     var tasks: [ProjectTask] = []
+    /// GitHub pull requests and CI per project; cached so they show up at launch.
+    var github: [String: GitHubRepo] = [:]
+    var githubAccess: GitHubAccess = .unknown
+    var githubSyncing = false
+    private var lastGitHubSync: Date?
 
     // Derived, recomputed after every refresh.
     private(set) var snapshots: [String: ProjectSnapshot] = [:]
@@ -116,6 +121,7 @@ final class AppState {
         plans = Store.load([String: WeekPlan].self, from: "plans.json") ?? [:]
         signals = Store.load([Signal].self, from: "signals.json") ?? []
         tasks = Store.load([ProjectTask].self, from: "tasks.json") ?? []
+        github = Store.load([String: GitHubRepo].self, from: "github.json") ?? [:]
         aiCache = Store.load(AICache.self, from: "ai-cache.json") ?? AICache()
         if config.onboarded { start() }
     }
@@ -262,6 +268,50 @@ final class AppState {
         now = Date()
         runSchedules()
         if config.ai.autoAnalyze { analyzeProjects() }
+        Task { await refreshGitHub() }
+    }
+
+    /// PRs and CI through `gh`, at most every 5 minutes unless forced; runs after the local refresh.
+    func refreshGitHub(force: Bool = false) async {
+        guard !githubSyncing else { return }
+        if !force, let last = lastGitHubSync, Date().timeIntervalSince(last) < 5 * 60 { return }
+        githubSyncing = true
+        defer { githubSyncing = false }
+        lastGitHubSync = Date()
+        githubAccess = await Task.detached { GitHubService.access() }.value
+        guard githubAccess.login != nil else { return }
+        let targets = config.activeProjects.map { ($0.id, $0.path, repos[$0.id]?.branch ?? "") }
+        let fetched = await withTaskGroup(of: (String, Bool, GitHubRepo?).self) { group in
+            for (id, path, branch) in targets {
+                group.addTask {
+                    guard let slug = GitHubService.slug(forRepo: path) else { return (id, false, nil) }
+                    return (id, true, GitHubService.fetch(slug: slug, branch: branch))
+                }
+            }
+            var result: [(String, Bool, GitHubRepo?)] = []
+            for await item in group { result.append(item) }
+            return result
+        }
+        // A failed request keeps the last known data; a repo without a GitHub remote drops out.
+        for (id, onGitHub, repo) in fetched {
+            if !onGitHub { github[id] = nil } else if let repo { github[id] = repo }
+        }
+        github = github.filter { id, _ in config.activeProjects.contains { $0.id == id } }
+        Store.save(github, to: "github.json", pretty: false)
+    }
+
+    /// Open pull requests across active projects, newest first.
+    var openPulls: [(projectId: String, pr: PullRequest)] {
+        github.flatMap { id, repo in repo.pulls.map { (id, $0) } }.sorted { $0.pr.updatedAt > $1.pr.updatedAt }
+    }
+
+    /// Opens Terminal with `gh auth login`.
+    func signInToGitHub() {
+        let terminal = config.terminalApp
+        Task {
+            let command = await Task.detached { CLILocator.terminalCommand("gh", "auth login") }.value
+            Shell.openTerminal(at: NSHomeDirectory(), command: command, app: terminal)
+        }
     }
 
     /// "Проанализировать": fresh data, then a forced AI pass (heuristics only refresh).
@@ -824,6 +874,7 @@ final class AppState {
             isSyncing = false
             toast = failures == 0 ? tr("Fetch выполнен для \(Plural.repos(paths.count))", "Fetched \(Plural.repos(paths.count))") : tr("Fetch: ошибок — \(failures)", "Fetch: \(failures) failed")
             await refresh()
+            await refreshGitHub(force: true)
         }
     }
 

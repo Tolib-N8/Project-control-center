@@ -702,3 +702,77 @@ final class GoalTasksTests: XCTestCase {
                        ["second", "first", "third"])
     }
 }
+
+final class GitHubTests: XCTestCase {
+    func testSlugFromRemotes() {
+        XCTAssertEqual(GitHubService.slug(fromRemote: "https://github.com/Tolib-N8/parking-main.git\n"), "Tolib-N8/parking-main")
+        XCTAssertEqual(GitHubService.slug(fromRemote: "git@github.com:owner/repo.git"), "owner/repo")
+        XCTAssertEqual(GitHubService.slug(fromRemote: "ssh://git@github.com/owner/repo"), "owner/repo")
+        XCTAssertEqual(GitHubService.slug(fromRemote: "https://token@github.com/owner/repo"), "owner/repo")
+        XCTAssertNil(GitHubService.slug(fromRemote: "https://gitlab.com/owner/repo.git"))
+        XCTAssertNil(GitHubService.slug(fromRemote: ""))
+    }
+
+    func testCheckRollup() {
+        XCTAssertEqual(GitHubService.checkState([]), .none)
+        XCTAssertEqual(GitHubService.checkState([["status": "COMPLETED", "conclusion": "SUCCESS"], ["status": "COMPLETED", "conclusion": "SKIPPED"]]), .success)
+        XCTAssertEqual(GitHubService.checkState([["status": "IN_PROGRESS", "conclusion": ""], ["status": "COMPLETED", "conclusion": "SUCCESS"]]), .pending)
+        XCTAssertEqual(GitHubService.checkState([["status": "COMPLETED", "conclusion": "FAILURE"], ["status": "QUEUED", "conclusion": ""]]), .failure)
+        XCTAssertEqual(GitHubService.checkState([["state": "PENDING"]]), .pending)
+        XCTAssertEqual(GitHubService.checkState([["state": "ERROR"]]), .failure)
+    }
+
+    func testParsePulls() {
+        let json = """
+        [{"number":12,"title":"Old","url":"https://github.com/o/r/pull/12","isDraft":false,"author":{"login":"me"},
+          "headRefName":"a","reviewDecision":"","statusCheckRollup":[],"mergeable":"MERGEABLE","updatedAt":"2026-10-01T10:00:00Z"},
+         {"number":14,"title":"New","url":"https://github.com/o/r/pull/14","isDraft":true,"author":{"login":"bot"},
+          "headRefName":"b","reviewDecision":"REVIEW_REQUIRED","statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"FAILURE"}],
+          "mergeable":"UNKNOWN","updatedAt":"2026-10-04T10:00:00Z"}]
+        """
+        let prs = GitHubService.parsePulls(Data(json.utf8))
+        XCTAssertEqual(prs.map(\.number), [14, 12])
+        XCTAssertEqual(prs[0].checks, .failure)
+        XCTAssertTrue(prs[0].isDraft)
+        XCTAssertNil(prs[1].reviewDecision)
+        XCTAssertEqual(prs[1].author, "me")
+        XCTAssertTrue(GitHubService.parsePulls(Data("not json".utf8)).isEmpty)
+    }
+
+    func testCIUsesLatestRunPerWorkflowAndIgnoresBots() throws {
+        let json = """
+        [{"status":"completed","conclusion":"success","workflowName":"CI","url":"u1","headBranch":"main","createdAt":"2026-10-05T10:00:00Z","event":"push"},
+         {"status":"completed","conclusion":"failure","workflowName":"CI","url":"u0","headBranch":"main","createdAt":"2026-10-04T10:00:00Z","event":"push"},
+         {"status":"completed","conclusion":"failure","workflowName":"Lint","url":"u2","headBranch":"main","createdAt":"2026-10-05T09:00:00Z","event":"pull_request"},
+         {"status":"completed","conclusion":"failure","workflowName":"Triage","url":"u3","headBranch":"main","createdAt":"2026-10-05T11:00:00Z","event":"issues"}]
+        """
+        let ci = try XCTUnwrap(GitHubService.parseCI(Data(json.utf8), branch: "main"))
+        XCTAssertEqual(ci.state, .failure)
+        XCTAssertEqual(ci.failed, 1)
+        XCTAssertEqual(ci.url, "u2")
+        let running = """
+        [{"status":"in_progress","conclusion":"","workflowName":"CI","url":"u","headBranch":"main","createdAt":"2026-10-05T10:00:00Z","event":"push"}]
+        """
+        XCTAssertEqual(GitHubService.parseCI(Data(running.utf8), branch: "main")?.state, .pending)
+        XCTAssertNil(GitHubService.parseCI(Data("[]".utf8), branch: "main"))
+    }
+
+    func testPRStatus() {
+        let saved = L10n.current
+        defer { L10n.current = saved }
+        L10n.current = .ru
+        var pr = PullRequest(number: 1, title: "t", url: "", isDraft: false, author: "me", branch: "b",
+                             reviewDecision: nil, checks: .success, mergeable: "MERGEABLE", updatedAt: Date())
+        XCTAssertEqual(PRStatus.describe(pr, me: "me").text, "Готов к merge")
+        pr.reviewDecision = "REVIEW_REQUIRED"
+        XCTAssertEqual(PRStatus.describe(pr, me: "me").text, "Ждёт ревью")
+        XCTAssertEqual(PRStatus.describe(pr, me: "someone").text, "Ждёт вашего ревью")
+        pr.checks = .failure
+        XCTAssertEqual(PRStatus.describe(pr, me: "me").tone, .bad)
+        pr.isDraft = true
+        XCTAssertEqual(PRStatus.describe(pr, me: "me").text, "Черновик")
+        L10n.current = .en
+        pr.isDraft = false; pr.checks = .success; pr.reviewDecision = "CHANGES_REQUESTED"
+        XCTAssertEqual(PRStatus.describe(pr, me: "me").text, "Changes requested")
+    }
+}

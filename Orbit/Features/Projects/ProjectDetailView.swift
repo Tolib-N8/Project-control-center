@@ -289,6 +289,13 @@ struct GitPanel: View {
                 if snap.testsFailing > 0 {
                     Label { Text(tr("\(snap.testsFailing) падают", "\(snap.testsFailing) failing")).uiFont(13, color: Theme.red) } icon: { Image(systemName: "xmark.circle").foregroundStyle(Theme.red) }
                 }
+                if let gh = app.github[snap.config.id] {
+                    if let ci = gh.ci, ci.state != .none {
+                        Text(ci.state == .failure ? "CI ✗" : ci.state == .pending ? "CI …" : "CI ✓")
+                            .uiFont(13, color: ci.state == .failure ? Theme.red : ci.state == .pending ? Theme.yellow : Theme.green)
+                    }
+                    if !gh.pulls.isEmpty { Text("\(gh.pulls.count) PR").uiFont(13, color: Theme.text2) }
+                }
             }
             .foregroundStyle(Theme.text2)
             .padding(.horizontal, 20).padding(.vertical, 14)

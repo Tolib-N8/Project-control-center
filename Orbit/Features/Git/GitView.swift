@@ -35,18 +35,7 @@ struct GitView: View {
             repoTable(snaps).appearStagger(2)
 
             HStack(alignment: .top, spacing: 28) {
-                Card(padding: 20) {
-                    VStack(alignment: .leading, spacing: 14) {
-                        HStack {
-                            Text(tr("Открытые PR", "Open PRs")).uiFont(14, .semibold)
-                            Spacer()
-                            Text(tr("скоро", "soon")).uiFont(12.5, color: Theme.text3)
-                        }
-                        Rectangle().fill(Theme.border).frame(height: 1)
-                        EmptyHint(symbol: "arrow.triangle.pull", title: tr("GitHub ещё не подключён", "GitHub isn’t connected yet"),
-                                  text: tr("PR и статусы CI появятся во второй фазе — через gh CLI. Пока колонка «Тесты» берёт результат последнего прогона из сессий агентов.", "Pull requests and CI status are coming via the gh CLI. Until then the Tests column shows the last test run from agent sessions."))
-                    }
-                }
+                PullRequestsCard()
                 abandoned(snaps)
             }
             .appearStagger(3)
@@ -79,13 +68,20 @@ struct GitView: View {
         let files = dirty.reduce(0) { $0 + $1.repo.changes.count }
         let failing = snaps.filter { $0.testsFailing > 0 }.count
         let behind = snaps.filter { $0.repo.behindMain >= 20 }.count
+        let connected = app.githubAccess.login != nil || !app.github.isEmpty
+        let ciFailing = app.github.values.filter { $0.ci?.state == .failure }.count
         return Card(padding: 20) {
             VStack(alignment: .leading, spacing: 16) {
                 Text(tr("Итого за 14 дней", "Last 14 days")).uiFont(14, .semibold)
                 totalRow(tr("Коммитов", "Commits"), "\(commits.count)")
                 totalRow(tr("От агентов", "By agents"), commits.isEmpty ? "0" : "\(agents) · \(agents * 100 / max(commits.count, 1))%", color: Theme.violet)
                 totalRow(tr("Незакоммичено", "Uncommitted"), files == 0 ? tr("чисто", "clean") : tr("\(Plural.files(files)) в \(dirty.count) репо", "\(Plural.files(files)) in \(Plural.repos(dirty.count))"), color: files == 0 ? Theme.text : Theme.yellow)
-                totalRow(tr("Падающие тесты", "Failing tests"), failing == 0 ? tr("нет", "none") : Plural.repos(failing), color: failing == 0 ? Theme.text : Theme.red)
+                if connected {
+                    totalRow(tr("Падающий CI", "Failing CI"), ciFailing == 0 ? tr("нет", "none") : Plural.repos(ciFailing), color: ciFailing == 0 ? Theme.text : Theme.red)
+                    totalRow(tr("Открытых PR", "Open PRs"), "\(app.openPulls.count)")
+                } else {
+                    totalRow(tr("Падающие тесты", "Failing tests"), failing == 0 ? tr("нет", "none") : Plural.repos(failing), color: failing == 0 ? Theme.text : Theme.red)
+                }
                 totalRow(tr("Отстают от main", "Behind main"), behind == 0 ? tr("нет", "none") : Plural.repos(behind), color: behind == 0 ? Theme.text : Theme.red)
             }
         }
@@ -107,7 +103,7 @@ struct GitView: View {
                 Eyebrow(text: "↑ / ↓").frame(width: 110, alignment: .leading)
                 Eyebrow(text: tr("Последний коммит", "Last commit")).frame(maxWidth: .infinity, alignment: .leading)
                 Eyebrow(text: tr("Изменения", "Changes")).frame(width: 120, alignment: .leading)
-                Eyebrow(text: tr("Тесты", "Tests")).frame(width: 90, alignment: .leading)
+                Eyebrow(text: tr("Проверки", "Checks")).frame(width: 90, alignment: .leading)
             }
             .padding(.horizontal, 20).padding(.vertical, 14)
             .hairline()
@@ -150,19 +146,31 @@ struct GitView: View {
             Text(r.changes.isEmpty ? "—" : Plural.files(r.changes.count))
                 .uiFont(13.5, color: r.changes.isEmpty ? Theme.text3 : Theme.yellow)
                 .frame(width: 120, alignment: .leading)
-            HStack(spacing: 6) {
-                if let _ = s.testsTotal {
-                    Dot(color: s.testsFailing > 0 ? Theme.red : Theme.green)
-                    Text(s.testsFailing > 0 ? "\(s.testsFailing) ✗" : tr("Ок", "OK")).uiFont(13.5, color: s.testsFailing > 0 ? Theme.red : Theme.text2)
-                } else {
-                    Dot(color: Theme.text3)
-                    Text(tr("нет", "none")).uiFont(13.5, color: Theme.text3)
-                }
-            }
-            .frame(width: 90, alignment: .leading)
+            checks(s).frame(width: 90, alignment: .leading)
         }
         .padding(.horizontal, 20).padding(.vertical, 14)
         .contentShape(Rectangle())
+    }
+
+    /// GitHub CI for the checked-out branch when there is one, otherwise the last test run from agent sessions.
+    @ViewBuilder
+    private func checks(_ s: ProjectSnapshot) -> some View {
+        HStack(spacing: 6) {
+            if let ci = app.github[s.config.id]?.ci, ci.state != .none {
+                let color = ci.state == .failure ? Theme.red : ci.state == .pending ? Theme.yellow : Theme.green
+                Dot(color: color)
+                Text(ci.state == .failure ? "CI \(ci.failed) ✗" : ci.state == .pending ? tr("CI идёт", "CI running") : "CI ✓")
+                    .uiFont(13.5, color: ci.state == .success ? Theme.text2 : color)
+            } else if s.testsTotal != nil {
+                Dot(color: s.testsFailing > 0 ? Theme.red : Theme.green)
+                Text(s.testsFailing > 0 ? "\(s.testsFailing) ✗" : tr("Ок", "OK")).uiFont(13.5, color: s.testsFailing > 0 ? Theme.red : Theme.text2)
+            } else {
+                Dot(color: Theme.text3)
+                Text(tr("нет", "none")).uiFont(13.5, color: Theme.text3)
+            }
+        }
+        .help(app.github[s.config.id]?.ci != nil ? tr("GitHub Actions на ветке \(s.repo.branch)", "GitHub Actions on \(s.repo.branch)")
+                                                  : tr("Последний прогон тестов в сессиях агентов", "Last test run in agent sessions"))
     }
 
     private func abandoned(_ snaps: [ProjectSnapshot]) -> some View {
@@ -415,5 +423,106 @@ struct DiffSheet: View {
             let id = projectId
             diff = await Task.detached { GitService.diff(id) }.value
         }
+    }
+}
+
+/// "Открытые PR": pull requests of all GitHub repos with the one status that matters, via `gh`.
+struct PullRequestsCard: View {
+    @Environment(AppState.self) private var app
+
+    var body: some View {
+        let pulls = app.openPulls
+        Card(padding: 20) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(tr("Открытые PR", "Open PRs")).uiFont(14, .semibold)
+                    if app.githubSyncing { ProgressView().controlSize(.mini) }
+                    Spacer()
+                    if !pulls.isEmpty { Text("\(pulls.count)").uiFont(12, color: Theme.text3).numericTransition(pulls.count) }
+                }
+                .padding(.bottom, 8)
+                content(pulls)
+            }
+        }
+        .animation(Motion.pick(Motion.content), value: pulls.map(\.pr))
+    }
+
+    @ViewBuilder
+    private func content(_ pulls: [(projectId: String, pr: PullRequest)]) -> some View {
+        switch app.githubAccess {
+        case .notInstalled where app.github.isEmpty:
+            hint(tr("Нужен GitHub CLI", "GitHub CLI needed"),
+                 tr("Установите gh (brew install gh) и войдите — Orbit покажет PR и статусы CI.", "Install gh (brew install gh) and sign in — Orbit will show PRs and CI status."))
+        case .signedOut where app.github.isEmpty:
+            hint(tr("Войдите в GitHub CLI", "Sign in to GitHub CLI"), tr("Orbit читает PR и CI через ваш аккаунт gh.", "Orbit reads PRs and CI with your gh account.")) {
+                OrbitButton(tr("Войти через терминал", "Sign in in Terminal"), icon: "terminal", compact: true) { app.signInToGitHub() }
+            }
+        case .unknown where app.github.isEmpty:
+            hint(tr("Связываюсь с GitHub…", "Contacting GitHub…"), "")
+        default:
+            if app.github.isEmpty {
+                hint(tr("Нет репозиториев на GitHub", "No repositories on GitHub"), tr("У подключённых проектов нет origin на github.com.", "None of your projects has an origin on github.com."))
+            } else if pulls.isEmpty {
+                hint(tr("Открытых PR нет", "No open PRs"),
+                     tr("Как только вы или агент откроете PR, он появится здесь со статусом проверок и ревью.", "As soon as you or an agent open a PR, it shows up here with its checks and review status."))
+            } else {
+                ForEach(Array(pulls.prefix(8).enumerated()), id: \.element.pr.url) { i, item in
+                    row(item.projectId, item.pr)
+                    if i < min(pulls.count, 8) - 1 { Rectangle().fill(Theme.border).frame(height: 1) }
+                }
+            }
+        }
+    }
+
+    private func row(_ projectId: String, _ pr: PullRequest) -> some View {
+        let status = PRStatus.describe(pr, me: app.githubAccess.login)
+        let color = Theme.projectColor(app.project(projectId)?.colorIndex ?? 0)
+        return Button { open(pr.url) } label: {
+            HStack(spacing: 12) {
+                Icon("arrow.triangle.pull", size: 13, weight: .regular).foregroundStyle(color)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(pr.title).uiFont(13).lineLimit(1)
+                    Text("#\(pr.number) · \(app.projectName(projectId))").monoFont(11.5, color: Theme.text3).lineLimit(1)
+                }
+                Spacer(minLength: 12)
+                Text(status.text).uiFont(12, color: tone(status.tone)).lineLimit(1)
+            }
+            .padding(.vertical, 10)
+            .hoverHighlight()
+        }
+        .buttonStyle(PlainButtonStyle2())
+        .help(tr("Открыть на GitHub · ветка \(pr.branch)", "Open on GitHub · branch \(pr.branch)"))
+        .contextMenu {
+            Button(tr("Открыть на GitHub", "Open on GitHub")) { open(pr.url) }
+            Button(tr("Скопировать ссылку", "Copy link")) {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(pr.url, forType: .string)
+            }
+        }
+    }
+
+    private func hint(_ title: String, _ text: String, @ViewBuilder action: () -> some View = { EmptyView() }) -> some View {
+        VStack(spacing: 10) {
+            IconBox(symbol: "arrow.triangle.pull", color: Theme.text2, size: 40)
+            Text(title).uiFont(14, .semibold)
+            if !text.isEmpty { Text(text).uiFont(12.5, color: Theme.text2).multilineTextAlignment(.center) }
+            action()
+        }
+        .frame(maxWidth: .infinity)
+        .padding(24)
+    }
+
+    private func tone(_ t: PRStatus.Tone) -> Color {
+        switch t {
+        case .ok: Theme.green
+        case .warn: Theme.yellow
+        case .bad: Theme.red
+        case .normal: Theme.text2
+        case .muted: Theme.text3
+        }
+    }
+
+    private func open(_ url: String) {
+        if let u = URL(string: url) { NSWorkspace.shared.open(u) }
     }
 }
