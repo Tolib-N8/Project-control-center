@@ -185,6 +185,7 @@ struct SheetHost: View {
         case .transcript(let sid): TranscriptSheet(sessionId: sid)
         case .addBlock(let day): AddBlockSheet(day: day)
         case .update: UpdateSheet()
+        case .taskGoal(let pid): TaskGoalSheet(projectId: pid)
         }
     }
 }

@@ -76,7 +76,7 @@ struct ProviderPicker: View {
         return Button { app.setAIProvider(kind) } label: {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    Image(systemName: kind.symbol).foregroundStyle(selected ? Theme.accent : Theme.text2)
+                    Icon(kind.symbol, size: 13, weight: .regular).foregroundStyle(selected ? Theme.accent : Theme.text2)
                     Text(kind.title).uiFont(13.5, .semibold)
                     Spacer()
                     ZStack {

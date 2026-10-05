@@ -65,6 +65,25 @@ enum Snapshotter {
                 }
                 continue
             case "plan": app.savePlan(app.makePlan(weekKey: app.displayWeekKey)); continue
+            case _ where name.hasPrefix("task-goal"):
+                // task-goal → the empty sheet; task-goal:<goal> → run the AI and capture the answer.
+                guard let p = app.activeSnapshots.max(by: { $0.sessions.count < $1.sessions.count }) else { continue }
+                let goal = name.split(separator: ":", maxSplits: 1).dropFirst().first.map(String.init)
+                TaskGoalSheet.debugGoal = goal
+                TaskGoalSheet.debugDone = false
+                app.screen = .project(p.config.id)
+                app.sheet = .taskGoal(projectId: p.config.id)
+                if goal != nil {
+                    try? await Task.sleep(for: .seconds(2))
+                    capture(to: "\(dir)/task-goal-thinking-\(L10n.current.rawValue).png")
+                    for _ in 0..<240 where !TaskGoalSheet.debugDone { try? await Task.sleep(for: .milliseconds(500)) }
+                }
+                try? await Task.sleep(for: .seconds(1.5))
+                capture(to: "\(dir)/task-goal\(goal == nil ? "" : "-result-\(L10n.current.rawValue)").png")
+                app.sheet = nil
+                TaskGoalSheet.debugGoal = nil
+                try? await Task.sleep(for: .seconds(0.8))
+                continue
             case _ where name.hasPrefix("lang:"):
                 // Live switch without touching AppleLanguages (the real app shares the defaults domain).
                 app.config.language = AppLanguage(rawValue: String(name.dropFirst(5))) ?? .system

@@ -251,6 +251,48 @@ enum AnalysisService {
         return AIRequest(system: system, prompt: prompt, schema: briefSchema, schemaName: "agent_brief")
     }
 
+    // MARK: - Tasks from a goal
+
+    static let tasksSchema: [String: Any] = object([
+        "tasks": ["type": "array", "items": object(["title": string, "area": string, "urgent": ["type": "boolean"]])],
+    ])
+
+    static func tasksRequest(goal: String, snapshot: ProjectSnapshot, folders: [String], openTasks: [String]) -> AIRequest {
+        let facts: [String: Any] = [
+            "goal": goal,
+            "folders": folders,
+            "open_tasks": openTasks,
+            "project": projectFacts(snapshot, health: HealthEngine.score(snapshot), signals: []),
+        ]
+        let prompt = tr("""
+        Разбей цель (goal) на задачи для этого проекта. Верни поле tasks: от 3 до 8 конкретных шагов в порядке выполнения.         title — короткая фраза в повелительном наклонении, до 80 символов, чтобы было понятно, когда шаг сделан.         area — одна папка из folders, к которой относится шаг, или пустая строка.         urgent — true, только если шаг блокирует остальные или цель прямо говорит о срочности.         Только шаги, которые ведут к цели: не добавляй постороннюю уборку репозитория (незакоммиченные файлы, .gitignore и т. п.),         если цель о ней не просит. Факты о проекте нужны, чтобы назвать верные файлы и папки. Не повторяй задачи из open_tasks.
+
+        Факты (JSON):
+        \(JSONText.encode(facts))
+        """, """
+        Break the goal down into tasks for this project. Return the tasks field: 3 to 8 concrete steps in the order to do them.         title is a short imperative phrase, up to 80 characters, clear enough to tell when the step is done.         area is one folder from folders that the step is about, or an empty string.         urgent is true only if the step blocks the others or the goal explicitly says it is urgent.         Only steps that lead to the goal: don't add unrelated repository housekeeping (uncommitted files, .gitignore and so on)         unless the goal asks for it. The project facts are there to name the right files and folders. Don't repeat tasks from open_tasks.
+
+        Facts (JSON):
+        \(JSONText.encode(facts))
+        """)
+        return AIRequest(system: system, prompt: prompt, schema: tasksSchema, schemaName: "goal_tasks")
+    }
+
+    /// Clean titles, folders only from the repository, at most 12 tasks.
+    static func parseTasks(_ obj: [String: Any], folders: [String]) throws -> [TaskDraft] {
+        let items = obj["tasks"] as? [[String: Any]] ?? []
+        let drafts = items.compactMap { item -> TaskDraft? in
+            let title = (item["title"] as? String ?? "")
+                .components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ")
+            guard !title.isEmpty else { return nil }
+            let raw = (item["area"] as? String ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+            let area = folders.first { $0.caseInsensitiveCompare(raw) == .orderedSame }
+            return TaskDraft(title: title, area: area, urgent: item["urgent"] as? Bool ?? false)
+        }
+        guard !drafts.isEmpty else { throw AIError.badResponse(tr("модель не предложила задач", "the model suggested no tasks")) }
+        return Array(drafts.prefix(12))
+    }
+
     // MARK: - Helpers
 
     private static let string: [String: Any] = ["type": "string"]

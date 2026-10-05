@@ -31,6 +31,7 @@ enum ActiveSheet: Identifiable {
     case transcript(sessionId: String)
     case addBlock(day: Int)
     case update
+    case taskGoal(projectId: String)
 
     var id: String {
         switch self {
@@ -41,6 +42,7 @@ enum ActiveSheet: Identifiable {
         case .transcript(let s): "transcript-\(s)"
         case .addBlock(let d): "add-\(d)"
         case .update: "update"
+        case .taskGoal(let p): "task-goal-\(p)"
         }
     }
 }
@@ -131,6 +133,7 @@ final class AppState {
             Task { @MainActor in
                 self?.now = Date()
                 self?.runSchedules()
+                self?.refreshForAgentTasks()
             }
         }
     }
@@ -155,6 +158,12 @@ final class AppState {
         return task
     }
 
+    /// Adds the selected drafts, keeping their order.
+    func addTasks(_ projectId: String, _ drafts: [TaskDraft]) {
+        tasks += TaskDraft.tasks(drafts, projectId: projectId)
+        saveTasks()
+    }
+
     func toggleTask(_ id: UUID) {
         updateTask(id) { $0.completedAt = $0.done ? nil : Date() }
     }
@@ -163,6 +172,39 @@ final class AppState {
         guard let i = tasks.firstIndex(where: { $0.id == id }) else { return }
         change(&tasks[i])
         saveTasks()
+    }
+
+    func agentState(_ task: ProjectTask) -> TaskAgentState? {
+        TaskAgent.state(for: task, sessions: snapshots[task.projectId]?.sessions ?? [], now: now)
+    }
+
+    /// The agent to offer first: the one last used in the project, Claude Code otherwise.
+    func preferredAgent(_ projectId: String) -> AgentKind {
+        snapshots[projectId]?.sessions.first { TaskAgent.supported.contains($0.agent) }?.agent ?? .claude
+    }
+
+    /// Hands the task to an agent in the project's terminal.
+    func assignTask(_ id: UUID, to agent: AgentKind) {
+        guard let task = tasks.first(where: { $0.id == id }) else { return }
+        updateTask(id) { $0.agent = agent; $0.assignedAt = Date() }
+        runAgent(task.projectId, prompt: TaskAgent.prompt(for: task), agent: agent)
+        toast = tr("\(agent.title) получил задачу", "\(agent.title) got the task")
+        // Pick up the new session soon instead of waiting for the regular refresh.
+        Task {
+            try? await Task.sleep(for: .seconds(45))
+            await refresh()
+        }
+    }
+
+    func unassignTask(_ id: UUID) {
+        updateTask(id) { $0.agent = nil; $0.assignedAt = nil }
+    }
+
+    /// While an agent works on a task, refresh every couple of minutes so its status keeps up.
+    func refreshForAgentTasks() {
+        guard !isSyncing, tasks.contains(where: { !$0.done && agentState($0)?.inFlight == true }) else { return }
+        if let last = lastSync, now.timeIntervalSince(last) < 120 { return }
+        Task { await refresh() }
     }
 
     func deleteTask(_ id: UUID) {
@@ -397,6 +439,17 @@ final class AppState {
         let obj = try await provider.complete(AnalysisService.briefRequest(signal: signal, snapshot: snap))
         guard let brief = obj["brief"] as? String, !brief.trimmed.isEmpty else { throw AIError.badResponse(tr("пустой бриф", "empty brief")) }
         return brief.trimmed
+    }
+
+    /// AI breaks a goal down into tasks for review.
+    func aiTasks(_ projectId: String, goal: String) async throws -> [TaskDraft] {
+        guard let provider = try AIProviders.make(config.ai) else { throw AIError.notConfigured(tr("ИИ-анализ выключен", "AI analysis is off")) }
+        guard let snap = snapshots[projectId] else { throw AIError.notConfigured(tr("Проект не найден", "Project not found")) }
+        let path = project(projectId)?.path ?? projectId
+        let folders = await Task.detached { TaskArea.folders(in: path) }.value
+        let open = tasks(for: projectId).filter { !$0.done }.map(\.title)
+        let request = AnalysisService.tasksRequest(goal: goal, snapshot: snap, folders: folders, openTasks: open)
+        return try AnalysisService.parseTasks(try await provider.complete(request), folders: folders)
     }
 
     func testAI() async -> (ok: Bool, message: String) {
@@ -724,9 +777,9 @@ final class AppState {
     func resume(_ session: AgentSession) {
         switch session.agent {
         case .claude:
-            openTerminal(session.projectId, command: session.resumeId.map { "claude --resume \($0)" } ?? "claude --continue")
+            openAgent(session.projectId, cli: "claude", args: session.resumeId.map { "--resume \($0)" } ?? "--continue")
         case .codex:
-            openTerminal(session.projectId, command: session.resumeId.map { "codex resume \($0)" } ?? "codex resume --last")
+            openAgent(session.projectId, cli: "codex", args: session.resumeId.map { "resume \($0)" } ?? "resume --last")
         default:
             openTerminal(session.projectId)
         }
@@ -734,8 +787,7 @@ final class AppState {
 
     /// Starts an agent with a prepared task in the project's terminal.
     func runAgent(_ projectId: String, prompt: String, agent: AgentKind = .claude) {
-        let quoted = Shell.quote(prompt)
-        openTerminal(projectId, command: agent == .codex ? "codex \(quoted)" : "claude \(quoted)")
+        openAgent(projectId, cli: agent == .codex ? "codex" : "claude", args: Shell.quote(prompt))
     }
 
     func startWorkSession(_ projectId: String) {
@@ -743,7 +795,16 @@ final class AppState {
            last.status != .done {
             resume(last)
         } else {
-            openTerminal(projectId, command: "claude")
+            openAgent(projectId, cli: "claude", args: "")
+        }
+    }
+
+    /// Opens the project's terminal with an agent CLI resolved the same way the AI providers find it.
+    private func openAgent(_ projectId: String, cli: String, args: String) {
+        let terminal = config.terminalApp
+        Task {
+            let command = await Task.detached { CLILocator.terminalCommand(cli, args) }.value
+            Shell.openTerminal(at: projectId, command: command, app: terminal)
         }
     }
 

@@ -66,7 +66,7 @@ struct WeekPlannerSheet: View {
             }
             .background(Theme.bg, in: RoundedRectangle(cornerRadius: 8))
             Button { dismiss() } label: {
-                Image(systemName: "xmark").font(.system(size: 14)).foregroundStyle(Theme.text2).frame(width: 32, height: 32)
+                Icon("xmark", size: 14, weight: .regular).foregroundStyle(Theme.text2).frame(width: 32, height: 32)
             }
             .buttonStyle(PlainButtonStyle2())
             .padding(.leading, 12)
@@ -78,7 +78,7 @@ struct WeekPlannerSheet: View {
 
     private func navButton(_ icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: icon).font(.system(size: 12, weight: .medium)).foregroundStyle(Theme.text2).frame(width: 36, height: 32)
+            Icon(icon, size: 12).foregroundStyle(Theme.text2).frame(width: 36, height: 32)
         }
         .buttonStyle(PlainButtonStyle2())
     }

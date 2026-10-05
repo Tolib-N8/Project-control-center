@@ -382,11 +382,12 @@ struct DayColumn: View {
             }
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: "plus")
+                Icon("plus", size: 11)
                 Text(tr("Проект", "Project"))
             }
         }
-        .menuStyle(.borderlessButton)
+        .menuStyle(.button)
+        .buttonStyle(PlainButtonStyle2())
         .menuIndicator(.hidden)
         .fixedSize()
         .font(OrbitFont.ui(12.5))

@@ -567,3 +567,138 @@ final class TaskTests: XCTestCase {
         XCTAssertEqual(back.first?.done, true)
     }
 }
+
+final class TaskAgentTests: XCTestCase {
+    private func session(_ agent: AgentKind, start: Date, prompt: String, status: SessionStatus) -> AgentSession {
+        var s = AgentSession(id: UUID().uuidString, agent: agent, resumeId: nil, logPath: "", cwd: "/p", title: prompt,
+                             firstPrompt: prompt, finalMessage: nil, model: nil, start: start, end: start.addingTimeInterval(600),
+                             activeSeconds: 600, filesTouched: [], filesRead: 0, linesAdded: 0, linesRemoved: 0, tokens: 0,
+                             testsPassed: nil, testsFailed: nil, lastFailingTest: nil, reverts: 0, editsPerFile: [:],
+                             lastError: nil, events: [])
+        s.projectId = "/p"
+        s.status = status
+        return s
+    }
+
+    func testPromptCarriesTitleAndDetails() {
+        let saved = L10n.current
+        defer { L10n.current = saved }
+        let task = ProjectTask(projectId: "/p", title: "Rate-limit /token", urgent: true, area: "api")
+        L10n.current = .ru
+        let ru = TaskAgent.prompt(for: task)
+        XCTAssertTrue(ru.contains("Rate-limit /token") && ru.contains("api/") && ru.contains("срочно"))
+        L10n.current = .en
+        XCTAssertTrue(TaskAgent.prompt(for: task).contains("urgent"))
+    }
+
+    func testMatchesSessionByTitleAfterHandOff() {
+        let assigned = Date(timeIntervalSince1970: 1_000_000)
+        var task = ProjectTask(projectId: "/p", title: "Fix auth tests")
+        task.agent = .claude
+        task.assignedAt = assigned
+        let before = session(.claude, start: assigned.addingTimeInterval(-3600), prompt: "Fix auth tests", status: .done)
+        let other = session(.claude, start: assigned.addingTimeInterval(30), prompt: "something else", status: .done)
+        let codex = session(.codex, start: assigned.addingTimeInterval(20), prompt: "Fix auth tests", status: .done)
+        let match = session(.claude, start: assigned.addingTimeInterval(600), prompt: "Задача из Orbit: «Fix auth tests».", status: .active)
+        XCTAssertEqual(TaskAgent.session(for: task, in: [before, other, codex, match])?.id, match.id)
+        // Without the title anywhere, the first session right after the hand-off counts.
+        XCTAssertEqual(TaskAgent.session(for: task, in: [before, other, codex])?.id, other.id)
+    }
+
+    func testPhases() {
+        let assigned = Date(timeIntervalSince1970: 1_000_000)
+        var task = ProjectTask(projectId: "/p", title: "Ship it")
+        XCTAssertNil(TaskAgent.state(for: task, sessions: []))
+        task.agent = .codex
+        task.assignedAt = assigned
+        XCTAssertEqual(TaskAgent.state(for: task, sessions: [], now: assigned.addingTimeInterval(60))?.phase, .starting)
+        XCTAssertEqual(TaskAgent.state(for: task, sessions: [], now: assigned.addingTimeInterval(3600))?.phase, .stalled)
+        let running = session(.codex, start: assigned.addingTimeInterval(10), prompt: "Ship it", status: .active)
+        XCTAssertEqual(TaskAgent.state(for: task, sessions: [running])?.phase, .working)
+        var finished = running
+        finished.status = .done
+        XCTAssertEqual(TaskAgent.state(for: task, sessions: [finished])?.phase, .review)
+        XCTAssertEqual(TaskAgent.state(for: task, sessions: [finished])?.inFlight, false)
+    }
+
+    func testOldTasksDecodeWithoutAgent() throws {
+        let json = #"[{"id":"6F1B5C2E-8A4D-4F0B-9C3E-2D7A1B0E5F44","projectId":"/p","title":"Old","urgent":false,"createdAt":"2026-10-01T09:00:00Z"}]"#
+        let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601
+        let tasks = try d.decode([ProjectTask].self, from: Data(json.utf8))
+        XCTAssertNil(tasks.first?.agent)
+        XCTAssertNil(tasks.first?.assignedAt)
+    }
+}
+
+final class TerminalCommandTests: XCTestCase {
+    func testUnknownCLIFallsBackToBareName() {
+        XCTAssertEqual(CLILocator.terminalCommand("orbit-no-such-cli", "--x"), "orbit-no-such-cli --x")
+    }
+
+    /// The launch script is `zsh -l` without ~/.zshrc; the command must still start the agent.
+    func testAgentStartsFromLoginShell() throws {
+        for cli in ["claude", "codex"] {
+            guard CLILocator.path(for: cli) != nil else { continue }
+            let command = CLILocator.terminalCommand(cli, "--version")
+            XCTAssertTrue(command.hasPrefix("PATH="))
+            let r = Shell.run("/bin/zsh", ["-lc", command], timeout: 30)
+            XCTAssertTrue(r.ok, "\(cli): \(r.stderr)")
+        }
+    }
+}
+
+final class IconMotionTests: XCTestCase {
+    func testSidebarIconsEachHaveTheirOwnMove() {
+        let nav = ["calendar", "square.grid.2x2", "cpu", "arrow.triangle.branch", "bell", "gearshape"]
+        let effects = nav.map(IconMotion.effect(for:))
+        XCTAssertEqual(Set(effects.map { "\($0)" }).count, nav.count)
+        XCTAssertEqual(IconMotion.effect(for: "bell"), .ring)
+        XCTAssertEqual(IconMotion.effect(for: "calendar.badge.plus"), .bounceDown)
+        XCTAssertEqual(IconMotion.effect(for: "arrow.down.to.line"), .wiggleDown)
+        XCTAssertEqual(IconMotion.effect(for: "something.unknown"), .bounceUp)
+    }
+}
+
+final class GoalTasksTests: XCTestCase {
+    func testParseCleansAndValidates() throws {
+        let obj: [String: Any] = ["tasks": [
+            ["title": "  Add   payment  model ", "area": "backend/", "urgent": true],
+            ["title": "", "area": "", "urgent": false],
+            ["title": "Cashier button", "area": "Frontend", "urgent": false],
+            ["title": "Docs", "area": "nowhere", "urgent": false],
+        ]]
+        let drafts = try AnalysisService.parseTasks(obj, folders: ["backend", "frontend"])
+        XCTAssertEqual(drafts.map(\.title), ["Add payment model", "Cashier button", "Docs"])
+        XCTAssertEqual(drafts.map(\.area), ["backend", "frontend", nil])
+        XCTAssertEqual(drafts.first?.urgent, true)
+        XCTAssertTrue(drafts.allSatisfy(\.selected))
+    }
+
+    func testParseCapsAndRejectsEmpty() throws {
+        let many: [String: Any] = ["tasks": (1...20).map { ["title": "Step \($0)", "area": "", "urgent": false] }]
+        XCTAssertEqual(try AnalysisService.parseTasks(many, folders: []).count, 12)
+        XCTAssertThrowsError(try AnalysisService.parseTasks(["tasks": [[String: Any]]()], folders: []))
+    }
+
+    func testSchemaIsStrict() {
+        let schema = AnalysisService.tasksSchema
+        XCTAssertEqual(schema["required"] as? [String], ["tasks"])
+        XCTAssertEqual(schema["additionalProperties"] as? Bool, false)
+        let item = ((schema["properties"] as? [String: Any])?["tasks"] as? [String: Any])?["items"] as? [String: Any]
+        XCTAssertEqual(item?["required"] as? [String], ["area", "title", "urgent"])
+        XCTAssertEqual(item?["additionalProperties"] as? Bool, false)
+    }
+
+    func testDraftsBecomeTasksInOrder() {
+        let now = Date(timeIntervalSince1970: 0)
+        var skipped = TaskDraft(title: "skip me")
+        skipped.selected = false
+        let drafts = [TaskDraft(title: "first"), skipped, TaskDraft(title: "  "), TaskDraft(title: "second", area: "api", urgent: true)]
+        let tasks = TaskDraft.tasks(drafts, projectId: "/p", now: now)
+        XCTAssertEqual(tasks.map(\.title), ["first", "second"])
+        XCTAssertLessThan(tasks[0].createdAt, tasks[1].createdAt)
+        XCTAssertEqual(tasks[1].area, "api")
+        XCTAssertEqual(TaskOrdering.open(tasks + [ProjectTask(projectId: "/p", title: "third", createdAt: now.addingTimeInterval(1))]).map(\.title),
+                       ["second", "first", "third"])
+    }
+}

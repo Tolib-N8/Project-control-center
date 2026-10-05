@@ -42,8 +42,9 @@ struct UpdateSheet: View {
             Spacer()
             if let page = release.pageURL {
                 Link(destination: page) {
-                    Image(systemName: "arrow.up.right.square").foregroundStyle(Theme.text3)
+                    Icon("arrow.up.right.square", size: 13, weight: .regular).foregroundStyle(Theme.text3)
                 }
+                .iconMotion()
                 .help(tr("Открыть релиз на GitHub", "Open the release on GitHub"))
             }
         }
@@ -113,7 +114,7 @@ struct UpdateBanner: View {
     var body: some View {
         Button { app.sheet = .update } label: {
             HStack(spacing: 10) {
-                Image(systemName: "arrow.down.circle.fill").font(.system(size: 14)).foregroundStyle(Theme.accent)
+                Icon("arrow.down.circle.fill", size: 14, weight: .regular).foregroundStyle(Theme.accent)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(tr("Доступна версия \(release.version)", "Version \(release.version) is available")).uiFont(12, .medium)
                     Text(progressText).uiFont(11.5, color: Theme.text3).contentTransition(.opacity)

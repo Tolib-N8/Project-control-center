@@ -166,6 +166,14 @@ enum CLILocator {
         return FileManager.default.isExecutableFile(atPath: shell) ? shell : "/bin/zsh"
     }
 
+    /// A shell command line that starts the CLI by its absolute path with the terminal's PATH.
+    /// The launch script runs a login shell that skips ~/.zshrc, so a bare `claude` may not resolve there.
+    static func terminalCommand(_ name: String, _ args: String) -> String {
+        guard let exe = path(for: name) else { return args.isEmpty ? name : "\(name) \(args)" }
+        let line = "PATH=\(Shell.quote(searchPATH(for: exe))):\"$PATH\" \(Shell.quote(exe))"
+        return args.isEmpty ? line : "\(line) \(args)"
+    }
+
     /// Runs a CLI by name with a PATH that matches the user's terminal.
     static func run(_ name: String, _ args: [String], cwd: String? = nil, input: String? = nil, timeout: TimeInterval) -> ShellResult? {
         guard let exe = path(for: name) else { return nil }

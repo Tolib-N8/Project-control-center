@@ -29,7 +29,7 @@ struct SidebarView: View {
                     Eyebrow(text: tr("Проекты", "Projects"))
                     Spacer()
                     Button(action: pickFolder) {
-                        Image(systemName: "plus").font(.system(size: 12, weight: .medium)).foregroundStyle(Theme.text3)
+                        Icon("plus", size: 12).foregroundStyle(Theme.text3)
                     }
                     .buttonStyle(PlainButtonStyle2())
                     .help(tr("Подключить репозиторий", "Add repository"))
@@ -84,8 +84,7 @@ struct SidebarView: View {
         let selected = isSelected(screen)
         return Button { app.screen = screen } label: {
             HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 13, weight: .regular))
+                Icon(icon, size: 13, weight: .regular)
                     .frame(width: 16)
                     .foregroundStyle(selected ? Theme.text : Theme.text2)
                 Text(title).uiFont(13, selected ? .medium : .regular, color: selected ? Theme.text : Theme.text2)
@@ -170,7 +169,7 @@ struct SidebarView: View {
                     .uiFont(11.5, color: Theme.text3)
                 Spacer()
                 SettingsLink {
-                    Image(systemName: "gearshape").font(.system(size: 12)).foregroundStyle(Theme.text3)
+                    Icon("gearshape", size: 12, weight: .regular).foregroundStyle(Theme.text3)
                 }
                 .buttonStyle(PlainButtonStyle2())
                 .help(tr("Настройки (⌘,)", "Settings (⌘,)"))

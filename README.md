@@ -32,6 +32,8 @@ When you run several projects at once and AI agents write most of the code, it's
 
 Orbit answers that on its own. It reads your **git repositories** and the **session logs of your coding agents** (Claude Code, Codex, Aider), scores every project's health, flags problems before they hurt, and plans your week around them.
 
+And it closes the loop: keep a task list per project, let AI break a goal into steps, and hand any task to Claude Code or Codex with one click — Orbit follows the agent's session and tells you when the work is ready for review.
+
 ## Features
 
 <table>
@@ -81,7 +83,7 @@ Checks every 15 minutes, a morning brief at 9:00, an automatic plan on Sunday ev
 <td valign="top">
 
 ### ✅ Tasks
-A to-do list on every project page: type a task and press Enter. Right-click to mark it urgent, set a due day or pick the folder it's about — Orbit fills the folder in itself when the title names one. Urgent and soonest-due come first.
+A to-do list on every project page: type a task and press Enter. Right-click to mark it urgent, set a due day or pick the folder it's about — Orbit fills the folder in itself when the title names one. The robot button hands a task to Claude Code or Codex in your terminal, and the task shows where the agent is: *starting*, *working*, *to review*. Or describe a goal and let AI break it into steps you review before adding.
 
 </td>
 <td valign="top">
@@ -95,7 +97,7 @@ Follows your macOS language, switches live in Settings. AI conclusions come in t
 
 ## 🧠 AI analysis
 
-Orbit writes project summaries, next steps, a goal for the day, session breakdowns ("done / stuck / what to do next"), commit messages and briefs for agents that keep going in circles. Pick the model in **Settings → Analysis** (*Настройки → Анализ*, <kbd>⌘</kbd> <kbd>,</kbd>) or during onboarding:
+Orbit writes project summaries, next steps, a goal for the day, session breakdowns ("done / stuck / what to do next"), commit messages and briefs for agents that keep going in circles. It also **breaks a goal into tasks**: describe what you want on the project page (✨ in the *Tasks* panel), and the model suggests 3–8 ordered steps with the right folders — you untick or edit them before they're added. Pick the model in **Settings → Analysis** (*Настройки → Анализ*, <kbd>⌘</kbd> <kbd>,</kbd>) or during onboarding:
 
 | Provider | How it works | What you need |
 | --- | --- | --- |
@@ -106,14 +108,14 @@ Orbit writes project summaries, next steps, a goal for the day, session breakdow
 | **OpenAI-compatible** | `/chat/completions` | base URL and key (OpenAI, OpenRouter, LM Studio…) |
 | **Heuristics** | rules, no model at all | nothing — the default |
 
-**Privacy.** Only *summaries* are sent to the model: file and branch names, session titles and outcomes, commit messages, test errors. Your source code never leaves the Mac — except the diff for commit messages, and only if you turn that on. API keys live in the macOS Keychain. Answers are cached, and a project is re-analysed only when something actually changed and at most every 6 hours, so your subscription limits are safe.
+**Privacy.** Only *summaries* are sent to the model: file and branch names, session titles and outcomes, commit messages, test errors — plus the goal you type when breaking it into tasks. Your source code never leaves the Mac — except the diff for commit messages, and only if you turn that on. API keys live in the macOS Keychain. Answers are cached, and a project is re-analysed only when something actually changed and at most every 6 hours, so your subscription limits are safe.
 
 ## Screenshots
 
 | | |
 | :---: | :---: |
 | <img src="design/exports/png/02-project-detail.png" alt="Project"> | <img src="design/exports/png/03-projects.png" alt="Projects"> |
-| **Project** — health trend, sessions, git, work days | **Projects** — cards and time per project |
+| **Project** — health trend, sessions, tasks, git, work days | **Projects** — cards and time per project |
 | <img src="design/exports/png/04-agent-sessions.png" alt="Agent sessions"> | <img src="design/exports/png/05-git.png" alt="Git"> |
 | **Agent sessions** — outcome, blockers, recommendation | **Git** — commits, repositories, branches |
 | <img src="design/exports/png/06-signals.png" alt="Signals"> | <img src="design/exports/png/07-week-planner.png" alt="Planner"> |
@@ -180,7 +182,9 @@ A 0–100 score. Penalties: changes uncommitted for more than a day, a branch be
 | <kbd>⌘</kbd> <kbd>1</kbd> … <kbd>5</kbd> | Week · Projects · Sessions · Git · Signals |
 | <kbd>⌘</kbd> <kbd>R</kbd> | Refresh data |
 | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>P</kbd> | Plan the week |
-| <kbd>⌘</kbd> <kbd>,</kbd> | Settings (AI provider, updates) |
+| <kbd>⌘</kbd> <kbd>,</kbd> | Settings (AI provider, language, updates) |
+| <kbd>↵</kbd> | Add a task (in the *Tasks* field) |
+| <kbd>⌘</kbd> <kbd>↵</kbd> | Break the goal into tasks (in the goal window) |
 
 ## Build from source
 
@@ -264,7 +268,7 @@ Each release ships two files: the styled **`.dmg`** for people (built by `script
 - [x] **0.6** — welcome screen, drag-to-install `.dmg`
 - [x] **0.7** — English interface, live language switching
 - [x] **0.8** — tasks on the project page
-- [ ] Hand a task to Claude Code or Codex with one click
+- [x] **0.9** — hand a task to Claude Code or Codex with one click, break a goal into tasks with AI, a motion for every icon
 - [ ] GitHub: open pull requests and CI status via `gh`
 - [ ] Notifications in Telegram and by email
 - [ ] Cursor chat history

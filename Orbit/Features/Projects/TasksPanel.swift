@@ -14,6 +14,7 @@ struct TasksPanel: View {
     /// Just-checked tasks stay in "Open" for a moment so the tick is visible before they leave.
     @State private var lingering: Set<UUID> = []
     @State private var folders: [String] = []
+    @State private var inputHover = false
 
     var body: some View {
         let all = app.tasks(for: projectId)
@@ -63,6 +64,15 @@ struct TasksPanel: View {
         HStack {
             Text(tr("Задачи", "Tasks")).uiFont(14, .semibold)
             Spacer()
+            Button { app.sheet = .taskGoal(projectId: projectId) } label: {
+                Icon("sparkles", size: 12.5)
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 28, height: 28)
+                    .background(Theme.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
+                    .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Theme.accent.opacity(0.25)))
+            }
+            .buttonStyle(PlainButtonStyle2())
+            .help(tr("Разбить цель на задачи с ИИ", "Break a goal into tasks with AI"))
             SegmentedTabs(items: [(Tab.open, tr("Открытые · \(open)", "Open · \(open)")),
                                   (Tab.done, tr("Готово · \(done)", "Done · \(done)"))],
                           selection: $tab)
@@ -76,8 +86,10 @@ struct TasksPanel: View {
             Image(systemName: "plus")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(inputFocused ? Theme.accent : Theme.text3)
+                .rotationEffect(.degrees(inputFocused || inputHover ? 90 : 0))
                 .frame(width: 16, height: 16)
                 .animation(Motion.pick(Motion.snappy), value: inputFocused)
+                .animation(Motion.pick(Motion.snappy), value: inputHover)
             TextField("", text: $draft, prompt: Text(tr("Новая задача…", "New task…")).foregroundStyle(Theme.text3))
                 .textFieldStyle(.plain)
                 .font(OrbitFont.ui(13))
@@ -90,6 +102,7 @@ struct TasksPanel: View {
         .padding(.vertical, 10).padding(.horizontal, 12)
         .background(Theme.bg, in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(inputFocused ? Theme.text3 : Theme.border))
+        .onHover { inputHover = $0 && !Motion.reduced }
         .padding(.horizontal, 20).padding(.vertical, 12)
         .hairline()
     }
@@ -156,6 +169,7 @@ struct TaskRow: View {
     @FocusState private var editFocused: Bool
 
     var body: some View {
+        let agentState = task.done ? nil : app.agentState(task)
         HStack(spacing: 12) {
             Button(action: onToggle) { TaskCheckbox(checked: task.done) }
                 .buttonStyle(PlainButtonStyle2())
@@ -163,16 +177,16 @@ struct TaskRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 title
-                if task.urgent || task.area != nil {
-                    HStack(spacing: 10) {
-                        if task.urgent && !task.done {
-                            HStack(spacing: 5) {
-                                Dot(color: Theme.red)
-                                Text(tr("Срочно", "Urgent")).uiFont(11.5, .medium, color: Theme.red)
-                            }
+                if task.urgent || task.area != nil || agentState != nil {
+                    // The agent tag drops to its own line when it doesn't fit next to the rest.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 10) {
+                            details
+                            if let agentState { AgentTaskTag(state: agentState) }
                         }
-                        if let area = task.area {
-                            Text(area + "/").monoFont(11.5, color: Theme.text2)
+                        VStack(alignment: .leading, spacing: 6) {
+                            if task.urgent || task.area != nil { HStack(spacing: 10) { details } }
+                            if let agentState { AgentTaskTag(state: agentState) }
                         }
                     }
                 }
@@ -180,9 +194,9 @@ struct TaskRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             if !task.done {
-                Button {} label: { BotIcon() }
-                    .buttonStyle(AssignAgentButtonStyle())
-                    .help(tr("Назначение агенту — скоро", "Assigning to an agent — coming soon"))
+                Button { assign(agentState) } label: { BotIcon() }
+                    .buttonStyle(AssignAgentButtonStyle(active: agentState != nil))
+                    .help(assignHelp(agentState))
             }
             trailing.frame(width: 52, alignment: .trailing)
         }
@@ -190,6 +204,18 @@ struct TaskRow: View {
         .hoverHighlight()
         .hairline()
         .contextMenu { menu }
+    }
+
+    @ViewBuilder private var details: some View {
+        if task.urgent && !task.done {
+            HStack(spacing: 5) {
+                Dot(color: Theme.red)
+                Text(tr("Срочно", "Urgent")).uiFont(11.5, .medium, color: Theme.red)
+            }
+        }
+        if let area = task.area {
+            Text(area + "/").monoFont(11.5, color: Theme.text2).lineLimit(1)
+        }
     }
 
     @ViewBuilder private var title: some View {
@@ -250,9 +276,36 @@ struct TaskRow: View {
                 Button(tr("Без папки", "No folder")) { withMotion { app.updateTask(task.id) { $0.area = nil } } }
             }
             Button(tr("Переименовать", "Rename")) { startRename() }
+            Divider()
+            Menu(tr("Передать агенту", "Hand to agent")) {
+                ForEach(TaskAgent.supported) { agent in
+                    Button(agent.title) { app.assignTask(task.id, to: agent) }
+                }
+            }
+            if let state = app.agentState(task) {
+                if let session = state.session {
+                    Button(tr("Открыть сессию", "Open session")) { app.showSession(session) }
+                }
+                Button(tr("Снять с агента", "Take back from agent")) { withMotion { app.unassignTask(task.id) } }
+            }
         }
         Divider()
         Button(tr("Удалить", "Delete"), role: .destructive) { withMotion { app.deleteTask(task.id) } }
+    }
+
+    /// Not handed over yet: give it to the usual agent. Handed over: continue its session, or launch again.
+    private func assign(_ state: TaskAgentState?) {
+        if let state {
+            if let session = state.session { app.resume(session) } else { app.assignTask(task.id, to: state.agent) }
+        } else {
+            app.assignTask(task.id, to: app.preferredAgent(task.projectId))
+        }
+    }
+
+    private func assignHelp(_ state: TaskAgentState?) -> String {
+        guard let state else { return tr("Передать \(app.preferredAgent(task.projectId).title)", "Hand to \(app.preferredAgent(task.projectId).title)") }
+        return state.session != nil ? tr("Продолжить сессию в терминале", "Continue the session in the terminal")
+                                    : tr("Запустить \(state.agent.title) снова", "Launch \(state.agent.title) again")
     }
 
     private func startRename() {
@@ -287,24 +340,64 @@ struct TaskCheckbox: View {
                 }
             }
             .frame(width: 16, height: 16)
+            .scaleEffect(hover && !checked && !Motion.reduced ? 1.12 : 1)
             .contentShape(Rectangle())
-            .onHover { h in withMotion { hover = h } }
+            .onHover { h in withAnimation(Motion.pick(.spring(response: 0.25, dampingFraction: 0.55))) { hover = h } }
             .animation(Motion.pick(.spring(response: 0.25, dampingFraction: 0.7)), value: checked)
     }
 }
 
 /// The "assign an agent" button: outlined, pressed state fills like the design.
 struct AssignAgentButtonStyle: ButtonStyle {
+    /// Handed to an agent: violet fill, no outline.
+    var active = false
+
     func makeBody(configuration: Configuration) -> some View {
         Hovering { hover in
+            let pressed = configuration.isPressed
             configuration.label
-                .foregroundStyle(configuration.isPressed || hover ? Theme.text : Theme.text2)
+                .foregroundStyle(active ? Theme.violet : pressed || hover ? Theme.text : Theme.text2)
                 .frame(width: 24, height: 24)
-                .background(configuration.isPressed ? Theme.surface2 : .clear, in: RoundedRectangle(cornerRadius: 6))
-                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(configuration.isPressed || hover ? Theme.text3 : Theme.border))
+                .background(active ? Theme.violet.opacity(pressed ? 0.24 : hover ? 0.18 : 0.13) : pressed ? Theme.surface2 : .clear,
+                            in: RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(active ? .clear : pressed || hover ? Theme.text3 : Theme.border))
+                .animation(Motion.pick(Motion.snappy), value: active)
                 .contentShape(Rectangle())
                 .animation(Motion.pick(Motion.snappy), value: configuration.isPressed)
+                .iconMotion(pressed: pressed)
         }
+    }
+}
+
+/// "Claude Code · в работе": violet while the agent works, green when it is ready for review.
+struct AgentTaskTag: View {
+    @Environment(AppState.self) private var app
+    var state: TaskAgentState
+
+    var body: some View {
+        let color: Color = switch state.phase {
+        case .starting, .working: Theme.violet
+        case .review: Theme.green
+        case .stalled: Theme.text3
+        }
+        Button {
+            if let session = state.session { app.showSession(session) }
+        } label: {
+            HStack(spacing: 5) {
+                if state.phase == .working {
+                    Image(systemName: "circle.fill").font(.system(size: 5)).foregroundStyle(color)
+                        .symbolEffect(.pulse, options: .repeating, isActive: !Motion.reduced)
+                }
+                Text(state.label).uiFont(11.5, .semibold, color: color).lineLimit(1).fixedSize()
+            }
+            .padding(.vertical, 2).padding(.horizontal, 7)
+            .background(state.phase == .stalled ? Theme.surface2 : color.opacity(0.13), in: RoundedRectangle(cornerRadius: 5))
+        }
+        .buttonStyle(PlainButtonStyle2())
+        .disabled(state.session == nil)
+        .help(state.session != nil ? tr("Открыть сессию", "Open session") : "")
+        .contentTransition(.opacity)
+        .animation(Motion.pick(Motion.content), value: state.phase)
     }
 }
 
@@ -318,13 +411,24 @@ private struct Hovering<Content: View>: View {
 }
 
 /// Lucide's "bot" glyph, the icon the design uses for agents.
+/// It nods when the enclosing button is hovered or pressed.
 struct BotIcon: View {
     var size: CGFloat = 12
+    @Environment(\.iconTrigger) private var trigger
 
     var body: some View {
         BotShape()
             .stroke(style: StrokeStyle(lineWidth: size / 12 * 1.1, lineCap: .round, lineJoin: .round))
             .frame(width: size, height: size)
+            .keyframeAnimator(initialValue: 0.0, trigger: trigger) { view, angle in
+                view.rotationEffect(.degrees(angle), anchor: .bottom)
+            } keyframes: { _ in
+                KeyframeTrack {
+                    CubicKeyframe(-14, duration: 0.1)
+                    CubicKeyframe(10, duration: 0.12)
+                    SpringKeyframe(0, duration: 0.25)
+                }
+            }
     }
 }
 

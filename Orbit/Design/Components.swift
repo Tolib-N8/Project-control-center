@@ -37,6 +37,7 @@ enum OrbitButtonKind { case primary, secondary, light, ghost }
 struct OrbitButtonStyle: ButtonStyle {
     var kind: OrbitButtonKind = .secondary
     var compact = false
+    @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -47,7 +48,8 @@ struct OrbitButtonStyle: ButtonStyle {
             .background(background(configuration.isPressed), in: RoundedRectangle(cornerRadius: compact ? 7 : 8))
             .overlay(RoundedRectangle(cornerRadius: compact ? 7 : 8).strokeBorder(kind == .secondary ? Theme.border : .clear, lineWidth: 1))
             .contentShape(Rectangle())
-            .opacity(configuration.isPressed ? 0.85 : 1)
+            .iconMotion(pressed: configuration.isPressed)
+            .opacity(!isEnabled ? 0.45 : configuration.isPressed ? 0.85 : 1)
             .scaleEffect(configuration.isPressed && !Motion.reduced ? 0.97 : 1)
             .animation(Motion.pick(Motion.snappy), value: configuration.isPressed)
     }
@@ -87,7 +89,7 @@ struct OrbitButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                if let icon { Image(systemName: icon).font(.system(size: compact ? 11 : 12.5, weight: .medium)) }
+                if let icon { Icon(icon, size: compact ? 11 : 12.5) }
                 Text(title).lineLimit(1)
             }
             .fixedSize()
@@ -101,6 +103,7 @@ struct PlainButtonStyle2: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .contentShape(Rectangle())
+            .iconMotion(pressed: configuration.isPressed)
             .opacity(configuration.isPressed ? 0.75 : 1)
             // Rows and cards use this style too, so the press is barely a nudge.
             .scaleEffect(configuration.isPressed && !Motion.reduced ? 0.99 : 1)
@@ -394,24 +397,34 @@ struct MenuChip<Items: View>: View {
     @ViewBuilder var items: Items
 
     var body: some View {
+        // `.menuStyle(.button)` lets SwiftUI draw the label, so the icon can animate.
         Menu { items } label: {
             HStack(spacing: 8) {
-                if let icon { Image(systemName: icon) }
+                if let icon { Icon(icon, size: 12.5) }
                 Text(title)
-                if chevron { Image(systemName: "chevron.down") }
+                if chevron { Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold)) }
             }
         }
-        .menuStyle(.borderlessButton)
+        .menuStyle(.button)
+        .buttonStyle(MenuChipStyle(kind: kind))
         .menuIndicator(.hidden)
         .fixedSize()
-        .font(OrbitFont.ui(13, kind == .primary ? .semibold : .medium))
-        .tint(kind == .primary ? Theme.bg : Theme.text)
-        .foregroundStyle(kind == .primary ? Theme.bg : Theme.text)
-        .padding(.vertical, 8)
-        .padding(.horizontal, 14)
-        .background(kind == .primary ? Theme.accent : .clear, in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(kind == .secondary ? Theme.border : .clear))
-        .colorScheme(kind == .primary ? .light : .dark)
+    }
+}
+
+private struct MenuChipStyle: ButtonStyle {
+    var kind: OrbitButtonKind
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(OrbitFont.ui(13, kind == .primary ? .semibold : .medium))
+            .foregroundStyle(kind == .primary ? Theme.bg : Theme.text)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 14)
+            .background(kind == .primary ? Theme.accent : configuration.isPressed ? Theme.surface2 : .clear, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(kind == .secondary ? Theme.border : .clear))
+            .contentShape(Rectangle())
+            .iconMotion(pressed: configuration.isPressed)
     }
 }
 

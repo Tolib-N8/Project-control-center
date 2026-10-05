@@ -237,7 +237,7 @@ struct RulesPanel: View {
     private func channel(_ icon: String, _ title: String, on: Bool, disabled: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                Image(systemName: icon).font(.system(size: 11))
+                Icon(icon, size: 11, weight: .regular)
                 Text(title).uiFont(12.5).lineLimit(1)
             }
             .fixedSize()
