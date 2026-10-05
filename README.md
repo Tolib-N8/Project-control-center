@@ -7,7 +7,7 @@
 **Vibe coding without the chaos.**<br>
 Your projects, your AI agents and your week — in one orbit.
 
-![Version](https://img.shields.io/badge/version-0.9.0-C8F169?style=flat-square&labelColor=15171A)
+![Version](https://img.shields.io/badge/version-1.0.0-C8F169?style=flat-square&labelColor=15171A)
 ![Platform](https://img.shields.io/badge/macOS-15%2B-ECEDEF?style=flat-square&logo=apple&logoColor=white&labelColor=15171A)
 ![Swift](https://img.shields.io/badge/SwiftUI-native-F59E5B?style=flat-square&logo=swift&logoColor=white&labelColor=15171A)
 ![Local first](https://img.shields.io/badge/data-stays%20local-5AD48A?style=flat-square&labelColor=15171A)
