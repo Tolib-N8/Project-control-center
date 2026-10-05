@@ -77,6 +77,20 @@ Checks every 15 minutes, a morning brief at 9:00, an automatic plan on Sunday ev
 
 </td>
 </tr>
+<tr>
+<td valign="top">
+
+### ✅ Tasks
+A to-do list on every project page: type a task and press Enter. Right-click to mark it urgent, set a due day or pick the folder it's about — Orbit fills the folder in itself when the title names one. Urgent and soonest-due come first.
+
+</td>
+<td valign="top">
+
+### 🌐 English and Russian
+Follows your macOS language, switches live in Settings. AI conclusions come in the language you pick.
+
+</td>
+</tr>
 </table>
 
 ## 🧠 AI analysis
@@ -146,6 +160,7 @@ Everything is read **locally**; app state lives in `~/.orbit`.
 | **Codex** sessions | `~/.codex/sessions/**/rollout-*.jsonl` + `session_index.jsonl` |
 | **Aider** sessions | `.aider.chat.history.md` in the repository root |
 | Health, plan, signals | local heuristics — `Orbit/Services` |
+| Tasks | your own list, stored in `~/.orbit/tasks.json` |
 | Summaries, next steps, session breakdowns | the model you chose — `Orbit/Services/AI` — or heuristics |
 
 Logs are parsed once and cached by file size and modification time, so a refresh takes about a second.
@@ -248,6 +263,8 @@ Each release ships two files: the styled **`.dmg`** for people (built by `script
 - [x] **0.5** — self-updates and one-command releases
 - [x] **0.6** — welcome screen, drag-to-install `.dmg`
 - [x] **0.7** — English interface, live language switching
+- [x] **0.8** — tasks on the project page
+- [ ] Hand a task to Claude Code or Codex with one click
 - [ ] GitHub: open pull requests and CI status via `gh`
 - [ ] Notifications in Telegram and by email
 - [ ] Cursor chat history

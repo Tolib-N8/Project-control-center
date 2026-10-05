@@ -53,6 +53,7 @@ final class AppState {
     var sessions: [AgentSession] = []
     var plans: [String: WeekPlan] = [:]
     var signals: [Signal] = []
+    var tasks: [ProjectTask] = []
 
     // Derived, recomputed after every refresh.
     private(set) var snapshots: [String: ProjectSnapshot] = [:]
@@ -112,6 +113,7 @@ final class AppState {
         }
         plans = Store.load([String: WeekPlan].self, from: "plans.json") ?? [:]
         signals = Store.load([Signal].self, from: "signals.json") ?? []
+        tasks = Store.load([ProjectTask].self, from: "tasks.json") ?? []
         aiCache = Store.load(AICache.self, from: "ai-cache.json") ?? AICache()
         if config.onboarded { start() }
     }
@@ -136,6 +138,37 @@ final class AppState {
     func saveConfig() { Store.save(config, to: "config.json") }
     func savePlans() { Store.save(plans, to: "plans.json") }
     func saveSignals() { Store.save(signals, to: "signals.json") }
+    func saveTasks() { Store.save(tasks, to: "tasks.json") }
+
+    // MARK: - Tasks
+
+    func tasks(for projectId: String) -> [ProjectTask] { tasks.filter { $0.projectId == projectId } }
+
+    @discardableResult
+    func addTask(_ projectId: String, title: String) -> ProjectTask? {
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return nil }
+        let folders = TaskArea.folders(in: project(projectId)?.path ?? projectId)
+        let task = ProjectTask(projectId: projectId, title: title, area: TaskArea.detect(title: title, folders: folders))
+        tasks.append(task)
+        saveTasks()
+        return task
+    }
+
+    func toggleTask(_ id: UUID) {
+        updateTask(id) { $0.completedAt = $0.done ? nil : Date() }
+    }
+
+    func updateTask(_ id: UUID, _ change: (inout ProjectTask) -> Void) {
+        guard let i = tasks.firstIndex(where: { $0.id == id }) else { return }
+        change(&tasks[i])
+        saveTasks()
+    }
+
+    func deleteTask(_ id: UUID) {
+        tasks.removeAll { $0.id == id }
+        saveTasks()
+    }
 
     // MARK: - Refresh
 

@@ -12,10 +12,14 @@ struct ProjectDetailView: View {
                 StatTilesRow(snap: snap, score: app.health[projectId] ?? 0, history: app.healthHistory[projectId] ?? [])
                     .appearStagger(0)
                 HStack(alignment: .top, spacing: 28) {
-                    sessionsPanel(snap).appearStagger(1)
                     VStack(spacing: 28) {
-                        GitPanel(snap: snap)
+                        sessionsPanel(snap)
                         WorkDaysPanel(snap: snap)
+                    }
+                    .appearStagger(1)
+                    VStack(spacing: 28) {
+                        TasksPanel(projectId: projectId)
+                        GitPanel(snap: snap)
                     }
                     .frame(width: 380)
                     .appearStagger(2)

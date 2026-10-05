@@ -496,3 +496,74 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(AnalysisService.languageSalt, "|lang:en")
     }
 }
+
+final class TaskTests: XCTestCase {
+    private var saved = L10n.current
+    override func setUp() { super.setUp(); saved = L10n.current }
+    override func tearDown() { L10n.current = saved; super.tearDown() }
+
+    private func day(_ key: String) -> Date { DateFormat.isoDay.date(from: key)! }
+
+    func testOpenOrderingUrgentThenDueThenAge() {
+        let old = Date(timeIntervalSince1970: 0), new = Date(timeIntervalSince1970: 100)
+        let tasks = [
+            ProjectTask(projectId: "p", title: "no due, newer", createdAt: new),
+            ProjectTask(projectId: "p", title: "no due, older", createdAt: old),
+            ProjectTask(projectId: "p", title: "friday", due: "2026-10-09"),
+            ProjectTask(projectId: "p", title: "urgent, no due", urgent: true),
+            ProjectTask(projectId: "p", title: "today", due: "2026-10-05"),
+            ProjectTask(projectId: "p", title: "done", due: "2026-10-01", completedAt: new),
+        ]
+        XCTAssertEqual(TaskOrdering.open(tasks).map(\.title),
+                       ["urgent, no due", "today", "friday", "no due, older", "no due, newer"])
+        XCTAssertEqual(TaskOrdering.done(tasks).map(\.title), ["done"])
+    }
+
+    func testDueLabels() {
+        let now = day("2026-10-05").addingTimeInterval(10 * 3600) // Monday
+        L10n.current = .ru
+        XCTAssertEqual(TaskDue.label("2026-10-05", now: now).text, "Сегодня")
+        XCTAssertEqual(TaskDue.label("2026-10-05", now: now).tone, .today)
+        XCTAssertEqual(TaskDue.label("2026-10-06", now: now).text, "Завтра")
+        XCTAssertEqual(TaskDue.label("2026-10-07", now: now).text, "Ср")
+        XCTAssertEqual(TaskDue.label("2026-10-14", now: now).text, "14 окт")
+        XCTAssertEqual(TaskDue.label("2026-10-02", now: now).tone, .overdue)
+        XCTAssertEqual(TaskDue.label(nil, now: now).text, "—")
+        L10n.current = .en
+        XCTAssertEqual(TaskDue.label("2026-10-05", now: now).text, "Today")
+        XCTAssertEqual(TaskDue.label("2026-10-09", now: now).text, "Fri")
+        XCTAssertEqual(TaskDue.label("2026-10-02", now: now).text, "Oct 2")
+        // Today through Friday, at least three days ahead.
+        XCTAssertEqual(TaskDue.choices(now: now).map(\.key).first, "2026-10-05")
+        XCTAssertEqual(TaskDue.choices(now: now).count, 6)
+        XCTAssertEqual(TaskDue.choices(now: day("2026-10-10")).count, 4)
+    }
+
+    func testAreaDetection() {
+        let folders = ["api", "api-docs", "auth", "frontend"]
+        XCTAssertEqual(TaskArea.detect(title: "Починить тесты в auth", folders: folders), "auth")
+        XCTAssertEqual(TaskArea.detect(title: "Update api-docs for /token", folders: folders), "api-docs")
+        XCTAssertEqual(TaskArea.detect(title: "Frontend: dark theme", folders: folders), "frontend")
+        XCTAssertNil(TaskArea.detect(title: "authorization flow", folders: folders))
+    }
+
+    func testFoldersSkipHiddenAndBuildOutput() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        for name in ["src", ".git", "node_modules", "docs"] {
+            try FileManager.default.createDirectory(at: dir.appendingPathComponent(name), withIntermediateDirectories: true)
+        }
+        try Data().write(to: dir.appendingPathComponent("README.md"))
+        defer { try? FileManager.default.removeItem(at: dir) }
+        XCTAssertEqual(TaskArea.folders(in: dir.path), ["docs", "src"])
+    }
+
+    func testCodableRoundTrip() throws {
+        let task = ProjectTask(projectId: "/p", title: "Ship", urgent: true, area: "api", due: "2026-10-07", completedAt: Date(timeIntervalSince1970: 5))
+        let e = JSONEncoder(); e.dateEncodingStrategy = .iso8601
+        let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601
+        let back = try d.decode([ProjectTask].self, from: e.encode([task]))
+        XCTAssertEqual(back.first?.id, task.id)
+        XCTAssertEqual(back.first?.area, "api")
+        XCTAssertEqual(back.first?.done, true)
+    }
+}
