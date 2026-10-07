@@ -32,6 +32,7 @@ enum ActiveSheet: Identifiable {
     case addBlock(day: Int)
     case update
     case taskGoal(projectId: String)
+    case launchSet(projectId: String)
 
     var id: String {
         switch self {
@@ -43,6 +44,7 @@ enum ActiveSheet: Identifiable {
         case .addBlock(let d): "add-\(d)"
         case .update: "update"
         case .taskGoal(let p): "task-goal-\(p)"
+        case .launchSet(let p): "launch-\(p)"
         }
     }
 }
@@ -60,6 +62,11 @@ final class AppState {
     var github: [String: GitHubRepo] = [:]
     var githubAccess: GitHubAccess = .unknown
     var githubSyncing = false
+    /// The development timer and its history.
+    var worklog = WorkLog()
+    /// Ticks every second while the timer runs, so time on screen and in the menu bar stays live.
+    var timerNow = Date()
+    var clockTimer: Timer?
     private var lastGitHubSync: Date?
 
     // Derived, recomputed after every refresh.
@@ -122,6 +129,11 @@ final class AppState {
         signals = Store.load([Signal].self, from: "signals.json") ?? []
         tasks = Store.load([ProjectTask].self, from: "tasks.json") ?? []
         github = Store.load([String: GitHubRepo].self, from: "github.json") ?? [:]
+        worklog = Store.load(WorkLog.self, from: "worklog.json") ?? WorkLog()
+        worklog.recover(now: Date())
+        worklog.prune(before: Date().addingTimeInterval(-120 * 86400))
+        saveWorklog()
+        syncClock()
         aiCache = Store.load(AICache.self, from: "ai-cache.json") ?? AICache()
         if config.onboarded { start() }
     }
@@ -134,10 +146,12 @@ final class AppState {
             Task { @MainActor in await self?.refresh() }
         }
         scheduleUpdateChecks()
+        observeSleep()
         ticker?.invalidate()
         ticker = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.now = Date()
+                self?.heartbeat()
                 self?.runSchedules()
                 self?.refreshForAgentTasks()
             }
@@ -343,7 +357,7 @@ final class AppState {
         guard config.rhythm.signalsEnabled else { return }
         let active = activeSnapshots
         let before = Set(signals.filter { $0.state == .active }.map(\.id))
-        signals = SignalEngine.evaluate(config: config, projects: active, plans: [currentPlan, plan(nextWeekKey)], existing: signals)
+        signals = SignalEngine.evaluate(config: config, projects: active, plans: [currentPlan, plan(nextWeekKey)], existing: signals, work: worklog.intervals)
         if config.notifyMacOS {
             for i in signals.indices where signals[i].state == .active && !signals[i].notified && !before.contains(signals[i].id) {
                 let s = signals[i]
@@ -810,7 +824,7 @@ final class AppState {
     }
 
     func actualHours(_ projectId: String, on date: Date) -> Double {
-        Activity.hours(snapshots[projectId]?.sessions ?? [], on: date)
+        Activity.hours(snapshots[projectId]?.sessions ?? [], timer: worklog.intervals.filter { $0.projectId == projectId }, on: date, now: now)
     }
 
     // MARK: - Actions

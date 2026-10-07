@@ -190,7 +190,8 @@ struct MonthTimeCard: View {
         let start = cal.date(from: cal.dateComponents([.year, .month], from: app.now))!
         let end = cal.date(byAdding: .month, value: 1, to: start)!
         let rows = app.activeSnapshots.map { snap -> (ProjectSnapshot, Double, Double) in
-            (snap, Activity.hours(snap.sessions, from: start, to: end), plannedHours(snap.config.id, from: start, to: end))
+            (snap, Activity.hours(snap.sessions, timer: app.worklog.intervals.filter { $0.projectId == snap.config.id }, from: start, to: end, now: app.now),
+             plannedHours(snap.config.id, from: start, to: end))
         }
         .sorted { $0.1 > $1.1 }
         let actual = rows.reduce(0) { $0 + $1.1 }

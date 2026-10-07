@@ -75,7 +75,7 @@ Uncommitted for over a day, branch behind `main`, an agent reverting its own edi
 <td valign="top">
 
 ### 🌅 Always on
-Checks every 15 minutes, a morning brief at 9:00, an automatic plan on Sunday evening, macOS notifications. Orbit lives in the menu bar when its window is closed.
+Checks every 15 minutes, a morning brief at 9:00, an automatic plan on Sunday evening, macOS notifications. **Start development** opens the project's own set of apps and links (terminal with the agent, your editor on the project folder, `localhost:3000`, Figma…) and starts a timer that ticks live in the menu bar, with pause, stop and today's progress against the plan. Each session gets its own desktop: Orbit adds one through Mission Control (Accessibility permission), and **Stop** quits the apps it launched and removes the desktop.
 
 </td>
 </tr>
@@ -163,6 +163,7 @@ Everything is read **locally**; app state lives in `~/.orbit`.
 | **Aider** sessions | `.aider.chat.history.md` in the repository root |
 | Health, plan, signals | local heuristics — `Orbit/Services` |
 | Tasks | your own list, stored in `~/.orbit/tasks.json` |
+| Time worked | agent activity plus the development timer (`~/.orbit/worklog.json`), overlaps counted once |
 | Pull requests and CI | `gh pr list` and `gh run list` with your GitHub CLI account (optional) |
 | Summaries, next steps, session breakdowns | the model you chose — `Orbit/Services/AI` — or heuristics |
 
@@ -271,6 +272,7 @@ Each release ships two files: the styled **`.dmg`** for people (built by `script
 - [x] **0.8** — tasks on the project page
 - [x] **0.9** — hand a task to Claude Code or Codex with one click, break a goal into tasks with AI, a motion for every icon
 - [x] **1.0** — GitHub: open pull requests and CI status via `gh`
+- [x] **1.1** — "Start development": per-project apps and links, a timer and a live menu bar widget
 - [ ] Notifications in Telegram and by email
 - [ ] Cursor chat history
 - [ ] Apple notarization

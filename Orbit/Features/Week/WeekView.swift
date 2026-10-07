@@ -101,7 +101,7 @@ struct TodayFocusCard: View {
             .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 10) {
-                OrbitButton(tr("Начать рабочую сессию", "Start work session"), icon: "play", kind: .light) { app.startWorkSession(pid) }
+                DevelopmentControls(projectId: pid, kind: .light)
                 OrbitButton(tr("Открыть в терминале", "Open in Terminal"), icon: "terminal") { app.openTerminal(pid) }
                 Spacer()
                 let n = snap.sessions.count

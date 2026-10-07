@@ -57,9 +57,10 @@ struct ProjectDetailView: View {
                     app.sheet = .planner(weekKey: app.currentWeekKey)
                 }
                 OrbitButton(tr("Терминал", "Terminal"), icon: "terminal") { app.openTerminal(projectId) }
-                OrbitButton(app.isSyncing || app.aiBusy.contains("project:" + projectId) ? tr("Анализ…", "Analyzing…") : tr("Запустить анализ", "Run analysis"), icon: "sparkles", kind: .primary) {
+                OrbitButton(app.isSyncing || app.aiBusy.contains("project:" + projectId) ? tr("Анализ…", "Analyzing…") : tr("Запустить анализ", "Run analysis"), icon: "sparkles") {
                     app.analyzeNow(projectId: projectId)
                 }
+                DevelopmentControls(projectId: projectId)
             }
         }
     }

@@ -28,8 +28,9 @@ enum IconMotion {
         case "chevron.left.forwardslash.chevron.right": .wiggleLayers
         case "doc.on.doc": .bounceLayers
         case "archivebox", "scroll": .bounceDown
-        case "arrow.up.arrow.down", "network": .wiggleLayers
-        case "eye", "bolt", "viewfinder": .pulse
+        case "arrow.up.arrow.down", "arrow.left.arrow.right", "network": .wiggleLayers
+        case "eye", "bolt", "viewfinder", "pause": .pulse
+        case "stop": .bounceDown
         case "desktopcomputer", "function": .breathe
         default: .bounceUp
         }

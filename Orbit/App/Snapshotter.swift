@@ -84,6 +84,34 @@ enum Snapshotter {
                 TaskGoalSheet.debugGoal = nil
                 try? await Task.sleep(for: .seconds(0.8))
                 continue
+            case "develop":
+                // The real "Начать разработку" on today's focus: apps, desktop and all.
+                guard let pid = app.todayFocus?.projectId else { continue }
+                app.startDevelopment(pid)
+                try? await Task.sleep(for: .seconds(4))
+                continue
+            case "timer", "timer-pause", "timer-stop":
+                // The timer on today's focus (or the busiest project), as if started 1:12:05 ago; no apps are opened.
+                guard let pid = app.todayFocus?.projectId ?? app.activeSnapshots.max(by: { $0.sessions.count < $1.sessions.count })?.config.id else { continue }
+                switch name {
+                case "timer":
+                    app.worklog.start(pid, at: Date().addingTimeInterval(-4325))
+                    app.syncClock()
+                case "timer-pause": app.pauseTimer()
+                default:
+                    app.stopTimer()
+                    try? await Task.sleep(for: .seconds(5)) // apps quit, then the desktop is removed
+                }
+                try? await Task.sleep(for: .seconds(0.5))
+                continue
+            case "menu-panel":
+                renderOffscreen(MenuBarPanel().environment(app), width: 300, to: "\(dir)/menu-panel\(app.timerProjectId == nil ? "-idle" : app.timerPaused ? "-paused" : "").png")
+                try? await Task.sleep(for: .seconds(1.6))
+                continue
+            case "launch-set":
+                guard let pid = app.todayFocus?.projectId ?? app.config.activeProjects.first?.id else { continue }
+                app.screen = .project(pid)
+                app.sheet = .launchSet(projectId: pid)
             case _ where name.hasPrefix("lang:"):
                 // Live switch without touching AppleLanguages (the real app shares the defaults domain).
                 app.config.language = AppLanguage(rawValue: String(name.dropFirst(5))) ?? .system
@@ -122,6 +150,24 @@ enum Snapshotter {
             app.sheet = nil
         }
         NSApp.terminate(nil)
+    }
+
+    /// Renders a view that normally lives outside the main window (the menu bar panel).
+    static func renderOffscreen<V: View>(_ view: V, width: CGFloat, to path: String) {
+        let host = NSHostingView(rootView: view.fixedSize(horizontal: false, vertical: true).frame(width: width))
+        let size = host.fittingSize
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        window.orderFront(nil)
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.2))
+            if let v = window.contentView, let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) {
+                v.cacheDisplay(in: v.bounds, to: rep)
+                try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
+            }
+            window.close()
+        }
     }
 
     static func capture(to path: String) {

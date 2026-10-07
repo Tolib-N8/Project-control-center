@@ -3,11 +3,11 @@ import Foundation
 /// Evaluates monitoring rules and keeps signal state (active / snoozed / resolved) across runs.
 enum SignalEngine {
     /// `plans`: the current week's plan first, then the next week's.
-    static func evaluate(config: OrbitConfig, projects: [ProjectSnapshot], plans: [WeekPlan], existing: [Signal], now: Date = Date()) -> [Signal] {
+    static func evaluate(config: OrbitConfig, projects: [ProjectSnapshot], plans: [WeekPlan], existing: [Signal], work: [WorkInterval] = [], now: Date = Date()) -> [Signal] {
         var candidates: [Signal] = []
         for p in projects where !p.config.archived {
             for rule in config.rules where rule.enabled {
-                candidates += detect(rule, p, plans: plans, now: now)
+                candidates += detect(rule, p, plans: plans, work: work, now: now)
             }
         }
 
@@ -56,7 +56,7 @@ enum SignalEngine {
             }
     }
 
-    static func detect(_ rule: SignalRuleConfig, _ p: ProjectSnapshot, plans: [WeekPlan], now: Date) -> [Signal] {
+    static func detect(_ rule: SignalRuleConfig, _ p: ProjectSnapshot, plans: [WeekPlan], work: [WorkInterval] = [], now: Date) -> [Signal] {
         let plan = plans.first
         let pid = p.config.id
         let t = rule.threshold
@@ -143,7 +143,7 @@ enum SignalEngine {
             var result: [Signal] = []
             for block in plan.blocks where block.projectId == pid && block.day < today {
                 let date = Week.day(block.day, of: monday)
-                let actual = Activity.hours(p.sessions, on: date)
+                let actual = Activity.hours(p.sessions, timer: work.filter { $0.projectId == pid }, on: date, now: now)
                 if actual < 0.25 {
                     result.append(make(.warning, tr("День пропущен: \(Week.shortNames[block.day]), \(DateFormat.short(date))", "Day skipped: \(Week.shortNames[block.day]), \(DateFormat.short(date))"),
                                        tr("По плану было \(Duration.hours(block.hours)) ч, сессий агентов в этот день нет. Перенесите блок на другой день.", "\(Duration.hours(block.hours)) h were planned, but there were no agent sessions that day. Move the block to another day."),
@@ -195,5 +195,21 @@ enum Activity {
 
     static func hours(_ sessions: [AgentSession], from: Date, to: Date) -> Double {
         sessions.filter { $0.start >= from && $0.start < to }.reduce(0) { $0 + $1.activeSeconds } / 3600
+    }
+
+    /// Timer time plus agent activity outside the timer, so time counted by both is counted once.
+    static func hours(_ sessions: [AgentSession], timer: [WorkInterval], from: Date, to: Date, now: Date = Date()) -> Double {
+        let timed = timer.reduce(0) { $0 + $1.overlap(from: from, to: to, now: now) }
+        let agents = sessions.filter { $0.start >= from && $0.start < to }.reduce(0.0) { sum, s in
+            let covered = timer.reduce(0) { $0 + $1.overlap(from: s.start, to: s.end, now: now) }
+            return sum + max(0, s.activeSeconds - covered)
+        }
+        return (timed + agents) / 3600
+    }
+
+    static func hours(_ sessions: [AgentSession], timer: [WorkInterval], on date: Date, now: Date = Date()) -> Double {
+        let start = Week.calendar.startOfDay(for: date)
+        let end = Week.calendar.date(byAdding: .day, value: 1, to: start)!
+        return hours(sessions, timer: timer, from: start, to: end, now: now)
     }
 }

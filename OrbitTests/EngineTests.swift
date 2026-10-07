@@ -776,3 +776,113 @@ final class GitHubTests: XCTestCase {
         XCTAssertEqual(PRStatus.describe(pr, me: "me").text, "Changes requested")
     }
 }
+
+final class WorkTimerTests: XCTestCase {
+    private let t0 = Date(timeIntervalSince1970: 1_000_000)
+
+    func testElapsedSkipsPauses() {
+        var log = WorkLog()
+        log.start("/a", at: t0)
+        log.pause(at: t0 + 600)
+        log.resume(at: t0 + 1200)
+        XCTAssertEqual(log.elapsed(at: t0 + 1500), 900)
+        XCTAssertTrue(log.isRunning)
+        XCTAssertEqual(log.stop(at: t0 + 1800), 1200)
+        XCTAssertNil(log.current)
+        XCTAssertEqual(log.intervals.count, 2)
+        XCTAssertTrue(log.intervals.allSatisfy { $0.end != nil })
+    }
+
+    func testSwitchingProjectClosesTheRunningOne() {
+        var log = WorkLog()
+        log.start("/a", at: t0)
+        log.start("/a", at: t0 + 10)   // same project: nothing changes
+        XCTAssertEqual(log.intervals.count, 1)
+        log.start("/b", at: t0 + 300)
+        XCTAssertEqual(log.current?.projectId, "/b")
+        XCTAssertEqual(log.intervals.first?.end, t0 + 300)
+        XCTAssertEqual(log.seconds("/a", from: t0, to: t0 + 10_000, now: t0 + 900), 300)
+        XCTAssertEqual(log.elapsed(at: t0 + 900), 600)
+    }
+
+    func testRecoveryClosesAtLastBeat() {
+        var log = WorkLog()
+        log.start("/a", at: t0)
+        log.lastBeat = t0 + 1800
+        var fresh = log
+        fresh.recover(now: t0 + 1900)          // Orbit was only gone for a moment
+        XCTAssertTrue(fresh.isRunning)
+        log.recover(now: t0 + 10 * 3600)       // off overnight
+        XCTAssertEqual(log.current?.paused, true)
+        XCTAssertEqual(log.intervals.first?.end, t0 + 1800)
+        XCTAssertEqual(log.elapsed(at: t0 + 10 * 3600), 1800)
+    }
+
+    func testTimerAndAgentsAreNotCountedTwice() {
+        var session = AgentSession(id: "s", agent: .claude, resumeId: nil, logPath: "", cwd: "/a", title: "", firstPrompt: "", finalMessage: nil,
+                                   model: nil, start: t0 + 3600, end: t0 + 7200, activeSeconds: 2400, filesTouched: [], filesRead: 0,
+                                   linesAdded: 0, linesRemoved: 0, tokens: 0, testsPassed: nil, testsFailed: nil, lastFailingTest: nil,
+                                   reverts: 0, editsPerFile: [:], lastError: nil, events: [])
+        session.projectId = "/a"
+        let from = t0, to = t0 + 86400
+        // No timer: just the agent.
+        XCTAssertEqual(Activity.hours([session], timer: [], from: from, to: to, now: to), 2400.0 / 3600, accuracy: 0.001)
+        // Timer covers the whole session: only the timer counts.
+        let whole = [WorkInterval(projectId: "/a", start: t0 + 3000, end: t0 + 7500)]
+        XCTAssertEqual(Activity.hours([session], timer: whole, from: from, to: to, now: to), 4500.0 / 3600, accuracy: 0.001)
+        // Timer covers 20 minutes of it: 20 min timer + (40 − 20) min of agent outside it.
+        let part = [WorkInterval(projectId: "/a", start: t0 + 3600, end: t0 + 4800)]
+        XCTAssertEqual(Activity.hours([session], timer: part, from: from, to: to, now: to), 2400.0 / 3600, accuracy: 0.001)
+    }
+
+    func testLaunchDefaultsAndItems() throws {
+        let installed: (String) -> String? = { $0 == "Visual Studio Code" ? "/Applications/Visual Studio Code.app" : nil }
+        let items = LaunchSet.defaults(installed: installed)
+        XCTAssertEqual(items.first?.kind, .terminalAgent)
+        XCTAssertEqual(items.last?.kind, .app(path: "/Applications/Visual Studio Code.app"))
+        XCTAssertEqual(items.last?.opensFolder, true)
+        XCTAssertEqual(LaunchSet.defaults(installed: { _ in nil }).count, 1)
+        XCTAssertTrue(LaunchSet.isEditor("/Applications/IntelliJ IDEA CE.app"))
+        XCTAssertFalse(LaunchSet.isEditor("/Applications/Telegram.app"))
+        XCTAssertEqual(LaunchSet.urlItem("localhost:3000")?.kind, .url("http://localhost:3000"))
+        XCTAssertEqual(LaunchSet.urlItem("figma.com/file/x")?.kind, .url("https://figma.com/file/x"))
+        XCTAssertEqual(LaunchSet.urlItem("localhost:3000")?.name, "localhost:3000")
+        XCTAssertNil(LaunchSet.urlItem("not a link"))
+    }
+
+    func testOldProjectConfigDecodesWithoutLaunch() throws {
+        let json = #"{"path":"/p","name":"p","colorIndex":1,"archived":false,"workDays":[0]}"#
+        let p = try JSONDecoder().decode(ProjectConfig.self, from: Data(json.utf8))
+        XCTAssertNil(p.launch)
+        var custom = p
+        custom.launch = [LaunchItem(kind: .url("http://localhost:3000"), name: "localhost:3000")]
+        let back = try JSONDecoder().decode(ProjectConfig.self, from: JSONEncoder().encode(custom))
+        XCTAssertEqual(back.launch?.first?.kind, .url("http://localhost:3000"))
+    }
+
+    func testSessionRemembersWhatToCleanUp() throws {
+        var log = WorkLog()
+        log.start("/a", at: t0)
+        log.current?.openedApps = ["com.apple.calculator"]
+        log.current?.desktop = SpaceManager.Desktop(title: "Desktop 7")
+        let e = JSONEncoder(); e.dateEncodingStrategy = .iso8601
+        let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601
+        let back = try d.decode(WorkLog.self, from: e.encode(log))
+        XCTAssertEqual(back.current?.desktop?.title, "Desktop 7")
+        XCTAssertEqual(back.current?.openedApps, ["com.apple.calculator"])
+        // Worklogs written before these fields existed still load.
+        let old = #"{"intervals":[],"current":{"projectId":"/a","sessionStart":"2026-10-07T08:00:00Z","paused":false}}"#
+        XCTAssertNil(try d.decode(WorkLog.self, from: Data(old.utf8)).current?.desktop)
+    }
+
+    func testWorkspaceOptionsDefaultOn() throws {
+        let config = try JSONDecoder().decode(OrbitConfig.self, from: Data(#"{"onboarded":true}"#.utf8))
+        XCTAssertTrue(config.devNewDesktop)
+        XCTAssertTrue(config.devCloseOnStop)
+    }
+
+    func testClockText() {
+        XCTAssertEqual(Duration.clock(65), "1:05")
+        XCTAssertEqual(Duration.clock(4325), "1:12:05")
+    }
+}

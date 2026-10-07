@@ -53,6 +53,11 @@ struct SidebarView: View {
                     .padding(.bottom, -14)
                     .transition(Motion.transition(Motion.rise))
             }
+            if let pid = app.timerProjectId {
+                timerRow(pid)
+                    .padding(.bottom, -14)
+                    .transition(Motion.transition(Motion.rise))
+            }
             syncStatus
         }
         .padding(.horizontal, 14)
@@ -63,6 +68,7 @@ struct SidebarView: View {
         .overlay(alignment: .trailing) { Rectangle().fill(Theme.border).frame(width: 1) }
         .animation(Motion.pick(Motion.snappy), value: app.screen)
         .animation(Motion.pick(Motion.page), value: app.availableUpdate)
+        .animation(Motion.pick(Motion.page), value: app.timerProjectId)
         .animation(Motion.pick(Motion.snappy), value: app.config.activeProjects.map(\.id))
     }
 
@@ -132,6 +138,30 @@ struct SidebarView: View {
             Divider()
             Button(tr("В архив", "Archive")) { app.updateProject(p.id) { $0.archived = true } }
         }
+    }
+
+    /// "● parking-main   1:12:05" — the running timer, a click away from its project.
+    private func timerRow(_ pid: String) -> some View {
+        let paused = app.timerPaused
+        let color = Theme.projectColor(app.project(pid)?.colorIndex ?? 0)
+        return Button { app.screen = .project(pid) } label: {
+            HStack(spacing: 8) {
+                Image(systemName: paused ? "pause.fill" : "circle.fill")
+                    .font(.system(size: paused ? 8 : 6))
+                    .foregroundStyle(paused ? Theme.text3 : color)
+                    .symbolEffect(.pulse, options: .repeating, isActive: !paused && !Motion.reduced)
+                    .frame(width: 10)
+                Text(app.projectName(pid)).monoFont(12.5).lineLimit(1)
+                Spacer(minLength: 4)
+                Text(Duration.clock(app.timerElapsed)).monoFont(12.5, color: paused ? Theme.text3 : Theme.text2)
+                    .monospacedDigit()
+            }
+            .padding(.horizontal, 12).padding(.vertical, 10)
+            .background(color.opacity(paused ? 0.04 : 0.08), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(color.opacity(0.25)))
+        }
+        .buttonStyle(PlainButtonStyle2())
+        .help(paused ? tr("Таймер на паузе", "Timer paused") : tr("Идёт работа над проектом", "Working on this project"))
     }
 
     private var syncStatus: some View {

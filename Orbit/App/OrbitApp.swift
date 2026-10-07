@@ -50,34 +50,11 @@ struct OrbitApp: App {
         }
 
         MenuBarExtra {
-            MenuBarContent().environment(app)
+            MenuBarPanel().environment(app)
         } label: {
-            Image(systemName: app.activeSignals.isEmpty ? "circle.circle" : "circle.circle.fill")
+            MenuBarLabel().environment(app)
         }
-    }
-}
-
-struct MenuBarContent: View {
-    @Environment(AppState.self) private var app
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        let _ = app.languageRevision
-        if let focus = app.todayFocus {
-            Text(tr("Сегодня: \(app.projectName(focus.projectId)) · \(Duration.hours(focus.hours)) ч", "Today: \(app.projectName(focus.projectId)) · \(Duration.hours(focus.hours)) h"))
-        } else {
-            Text(tr("На сегодня ничего не запланировано", "Nothing planned for today"))
-        }
-        Text(tr("Сигналов: \(app.activeSignals.count)", "Signals: \(app.activeSignals.count)"))
-        Divider()
-        Button(tr("Открыть Orbit", "Open Orbit")) {
-            openWindow(id: "main")
-            NSApp.activate(ignoringOtherApps: true)
-        }
-        Button(tr("Обновить", "Refresh")) { Task { await app.refresh() } }
-        Divider()
-        Text("Orbit \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
-        Button(tr("Выйти", "Quit")) { NSApp.terminate(nil) }
+        .menuBarExtraStyle(.window)
     }
 }
 
@@ -186,6 +163,7 @@ struct SheetHost: View {
         case .addBlock(let day): AddBlockSheet(day: day)
         case .update: UpdateSheet()
         case .taskGoal(let pid): TaskGoalSheet(projectId: pid)
+        case .launchSet(let pid): LaunchSetSheet(projectId: pid)
         }
     }
 }

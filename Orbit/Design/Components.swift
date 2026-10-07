@@ -401,12 +401,12 @@ struct MenuChip<Items: View>: View {
         Menu { items } label: {
             HStack(spacing: 8) {
                 if let icon { Icon(icon, size: 12.5) }
-                Text(title)
+                if !title.isEmpty { Text(title) }
                 if chevron { Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold)) }
             }
         }
         .menuStyle(.button)
-        .buttonStyle(MenuChipStyle(kind: kind))
+        .buttonStyle(MenuChipStyle(kind: kind, narrow: title.isEmpty && icon == nil))
         .menuIndicator(.hidden)
         .fixedSize()
     }
@@ -414,13 +414,15 @@ struct MenuChip<Items: View>: View {
 
 private struct MenuChipStyle: ButtonStyle {
     var kind: OrbitButtonKind
+    /// Chevron only: a square-ish chip next to a button.
+    var narrow = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(OrbitFont.ui(13, kind == .primary ? .semibold : .medium))
             .foregroundStyle(kind == .primary ? Theme.bg : Theme.text)
             .padding(.vertical, 8)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, narrow ? 10 : 14)
             .background(kind == .primary ? Theme.accent : configuration.isPressed ? Theme.surface2 : .clear, in: RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(kind == .secondary ? Theme.border : .clear))
             .contentShape(Rectangle())

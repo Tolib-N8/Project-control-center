@@ -10,6 +10,8 @@ struct ProjectConfig: Codable, Identifiable, Hashable {
     var archived: Bool = false
     /// Preferred work days, 0 = Monday … 6 = Sunday.
     var workDays: [Int] = []
+    /// What "Начать разработку" opens; nil means the default set (terminal with the agent and an editor).
+    var launch: [LaunchItem]?
 
     var displayPath: String { path.abbreviatingHome }
 }
@@ -73,6 +75,10 @@ struct OrbitConfig: Codable {
     var skippedVersion: String?
     var notifiedUpdateVersion: String?
     var language: AppLanguage = .system
+    /// "Начать разработку" opens the apps on a new desktop and removes it on "Стоп".
+    var devNewDesktop = true
+    /// "Стоп" quits the apps that "Начать разработку" launched (those that weren't running before).
+    var devCloseOnStop = true
 
     init() {}
 
@@ -97,6 +103,8 @@ struct OrbitConfig: Codable {
         notifiedUpdateVersion = try c.decodeIfPresent(String.self, forKey: .notifiedUpdateVersion)
         // Configs from before the English interface existed keep Russian, even on an English macOS.
         language = try c.decodeIfPresent(AppLanguage.self, forKey: .language) ?? (onboarded ? .ru : .system)
+        devNewDesktop = try c.decodeIfPresent(Bool.self, forKey: .devNewDesktop) ?? d.devNewDesktop
+        devCloseOnStop = try c.decodeIfPresent(Bool.self, forKey: .devCloseOnStop) ?? d.devCloseOnStop
     }
 
     func source(_ kind: AgentKind) -> AgentSourceConfig {
