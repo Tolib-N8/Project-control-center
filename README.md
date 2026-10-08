@@ -188,6 +188,18 @@ A 0–100 score. Penalties: changes uncommitted for more than a day, a branch be
 | <kbd>↵</kbd> | Add a task (in the *Tasks* field) |
 | <kbd>⌘</kbd> <kbd>↵</kbd> | Break the goal into tasks (in the goal window) |
 
+## Branches and releases
+
+Work happens on three long-lived branches, named after the part of the version they bump:
+
+| Branch | For | Release |
+| --- | --- | --- |
+| `patch` | bug fixes | `scripts/release.sh patch` — 1.1.1 → 1.1.2 |
+| `minor` | small features | `scripts/release.sh minor` — 1.1.x → 1.2.0 |
+| `major` | big updates | `scripts/release.sh major` — 1.x → 2.0.0 |
+
+A finished branch is merged into `main`, and the release is cut from `main`: version bump, tag, `.dmg` and the updater archive on GitHub Releases. Afterwards the script merges `main` back into all three branches so none of them falls behind. `scripts/branches.sh` shows where each branch stands; `scripts/branches.sh sync` brings `main` in by hand.
+
 ## Build from source
 
 You need **Xcode 26+** and [XcodeGen](https://github.com/yonaskolb/XcodeGen).

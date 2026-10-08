@@ -2,19 +2,41 @@
 # Publishes a new Orbit version: bump, commit, tag, push, build from the tag, GitHub release.
 # Installed copies of Orbit pick the release up through the built-in updater.
 #
-#   scripts/release.sh 0.5.0            # release
-#   scripts/release.sh 0.5.0 --install  # …and install the build into /Applications
+#   scripts/release.sh patch            # 1.1.1 → 1.1.2 (bug fixes, from the patch branch)
+#   scripts/release.sh minor            # 1.1.1 → 1.2.0 (small features, from minor)
+#   scripts/release.sh major            # 1.1.1 → 2.0.0 (big updates, from major)
+#   scripts/release.sh 1.4.0            # an exact version
+#   scripts/release.sh minor --install  # …and install the build into /Applications
+#   scripts/release.sh --dry-run patch  # only print the version it would release
 #
 # Needs: a clean main branch in sync with origin, a "## [X.Y.Z]" section in CHANGELOG.md,
-# xcodegen, Xcode and an authenticated gh.
+# xcodegen, Xcode and an authenticated gh. Afterwards main is merged into patch/minor/major.
 set -euo pipefail
-
-version=${1:?usage: scripts/release.sh X.Y.Z [--install]}
-install=${2:-}
-[[ $version =~ '^[0-9]+\.[0-9]+\.[0-9]+$' ]] || { echo "Version must look like 1.2.3"; exit 1; }
 
 root=$(git rev-parse --show-toplevel)
 cd "$root"
+
+dry=false install=""
+args=()
+for a in "$@"; do
+  case $a in
+    --dry-run) dry=true ;;
+    --install) install=--install ;;
+    *) args+=("$a") ;;
+  esac
+done
+version=${args[1]:?usage: scripts/release.sh patch|minor|major|X.Y.Z [--install] [--dry-run]}
+
+# patch / minor / major count from the version in project.yml.
+current=$(sed -nE 's/.*MARKETING_VERSION: "([0-9.]+)".*/\1/p' project.yml)
+IFS=. read -r cur_major cur_minor cur_patch <<< "$current"
+case $version in
+  patch) version="$cur_major.$cur_minor.$((cur_patch + 1))" ;;
+  minor) version="$cur_major.$((cur_minor + 1)).0" ;;
+  major) version="$((cur_major + 1)).0.0" ;;
+esac
+[[ $version =~ '^[0-9]+\.[0-9]+\.[0-9]+$' ]] || { echo "Version must be patch, minor, major or look like 1.2.3"; exit 1; }
+if $dry; then echo "$current → $version"; exit 0; fi
 repo=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 tag="v$version"
 work="${TMPDIR:-/tmp}orbit-release-$version"   # outside iCloud: codesign rejects synced files
@@ -98,3 +120,6 @@ if [[ $install == --install ]]; then
   open /Applications/Orbit.app
   say "Installed into /Applications"
 fi
+
+# --- Keep the working branches current ------------------------------------
+"$root/scripts/branches.sh" sync || true
