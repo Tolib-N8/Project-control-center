@@ -7,8 +7,8 @@ options:
 settings:
   base:
     # Single source of the app version: the About panel and the menu bar read it from Info.plist.
-    MARKETING_VERSION: "1.1.0"
-    CURRENT_PROJECT_VERSION: "13"
+    MARKETING_VERSION: "1.1.1"
+    CURRENT_PROJECT_VERSION: "14"
     SWIFT_VERSION: "5.0"
     MACOSX_DEPLOYMENT_TARGET: "15.0"
     ENABLE_HARDENED_RUNTIME: NO
