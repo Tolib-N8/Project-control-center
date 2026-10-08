@@ -32,6 +32,10 @@ struct MenuBarPanel: View {
     var body: some View {
         let _ = app.languageRevision
         VStack(alignment: .leading, spacing: 0) {
+            if let cleanup = app.desktopCleanup {
+                waiting(cleanup)
+                Rectangle().fill(Theme.border).frame(height: 1)
+            }
             Group {
                 if let pid = app.timerProjectId { running(pid) } else { idle }
             }
@@ -133,6 +137,26 @@ struct MenuBarPanel: View {
                 .padding(.top, 2)
             }
         }
+    }
+
+    // MARK: - Waiting for apps to close
+
+    private func waiting(_ cleanup: DesktopCleanup) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 8) {
+                ProgressView().controlSize(.mini).padding(.top, 2)
+                Text(tr("Ждём подтверждения: \(cleanup.apps.joined(separator: ", "))", "Waiting for: \(cleanup.apps.joined(separator: ", "))"))
+                    .uiFont(12.5, color: Theme.text2).fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 8) {
+                OrbitButton(tr("Убрать стол сейчас", "Remove desktop now"), compact: true) { app.removeDesktopNow() }
+                    .help(tr("Окна, что остались, переедут на соседний стол", "Windows left on it move to the next desktop"))
+                OrbitButton(tr("Оставить стол", "Keep desktop"), kind: .ghost, compact: true) { app.keepDesktop() }
+            }
+        }
+        .padding(16)
+        .background(Theme.yellow.opacity(0.05))
+        .transition(Motion.transition(Motion.rise))
     }
 
     // MARK: - Idle

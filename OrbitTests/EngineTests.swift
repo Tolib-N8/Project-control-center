@@ -881,6 +881,29 @@ final class WorkTimerTests: XCTestCase {
         XCTAssertTrue(config.devCloseOnStop)
     }
 
+    func testTerminalsOpenTheProjectFolder() {
+        XCTAssertTrue(LaunchSet.isTerminal("/System/Applications/Utilities/Terminal.app"))
+        XCTAssertTrue(LaunchSet.isTerminal("/Applications/iTerm.app"))
+        XCTAssertTrue(LaunchSet.isTerminal("/Applications/Ghostty.app"))
+        XCTAssertFalse(LaunchSet.isTerminal("/Applications/Visual Studio Code.app"))
+        XCTAssertTrue(LaunchSet.appItem("/System/Applications/Utilities/Terminal.app").opensFolder)
+    }
+
+    func testWindowFramesMatchWithinTwoPoints() {
+        let a = CGRect(x: 173, y: 148, width: 877, height: 499)
+        XCTAssertTrue(DesktopCleaner.matches(a, CGRect(x: 174, y: 147, width: 878, height: 500)))
+        XCTAssertFalse(DesktopCleaner.matches(a, CGRect(x: 173, y: 148, width: 877, height: 520)))
+    }
+
+    func testDesktopRemembersItsIdAndWhereToReturn() throws {
+        let desktop = SpaceManager.Desktop(title: "Desktop 6", spaceID: 2002, returnTo: 1980)
+        let back = try JSONDecoder().decode(SpaceManager.Desktop.self, from: JSONEncoder().encode(desktop))
+        XCTAssertEqual(back, desktop)
+        // 1.1.0 stored only the title.
+        let old = try JSONDecoder().decode(SpaceManager.Desktop.self, from: Data(#"{"title":"Desktop 5"}"#.utf8))
+        XCTAssertNil(old.spaceID)
+    }
+
     func testClockText() {
         XCTAssertEqual(Duration.clock(65), "1:05")
         XCTAssertEqual(Duration.clock(4325), "1:12:05")

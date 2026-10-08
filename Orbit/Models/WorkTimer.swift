@@ -25,6 +25,14 @@ enum LaunchSet {
     /// Offered by default, first one installed wins.
     static let preferredEditors = ["Cursor", "Visual Studio Code", "Zed"]
 
+    /// Terminals open a new window in a folder given to them.
+    static let terminals = ["Terminal", "iTerm", "Ghostty", "Warp", "kitty", "WezTerm", "Alacritty"]
+
+    static func isTerminal(_ appPath: String) -> Bool {
+        let name = ((appPath as NSString).lastPathComponent as NSString).deletingPathExtension
+        return terminals.contains { name == $0 || name.hasPrefix($0 + " ") || name.hasPrefix($0 + "2") }
+    }
+
     static func isEditor(_ appPath: String) -> Bool {
         let name = ((appPath as NSString).lastPathComponent as NSString).deletingPathExtension
         return editors.contains { name == $0 || name.hasPrefix($0 + " ") }
@@ -43,7 +51,7 @@ enum LaunchSet {
 
     static func appItem(_ path: String) -> LaunchItem {
         let name = (FileManager.default.displayName(atPath: path) as NSString).deletingPathExtension
-        return LaunchItem(kind: .app(path: path), name: name, opensFolder: isEditor(path))
+        return LaunchItem(kind: .app(path: path), name: name, opensFolder: isEditor(path) || isTerminal(path))
     }
 
     /// "localhost:3000" → "http://localhost:3000"; nil for text that isn't a link.
@@ -178,4 +186,10 @@ extension Duration {
         let s = Int(seconds)
         return s >= 3600 ? String(format: "%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60) : String(format: "%d:%02d", s / 60, s % 60)
     }
+}
+
+/// What "Стоп" is waiting on before it removes the project's desktop.
+struct DesktopCleanup: Equatable {
+    var desktop: SpaceManager.Desktop
+    var apps: [String]
 }

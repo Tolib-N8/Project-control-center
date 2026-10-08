@@ -88,7 +88,7 @@ enum Snapshotter {
                 // The real "Начать разработку" on today's focus: apps, desktop and all.
                 guard let pid = app.todayFocus?.projectId else { continue }
                 app.startDevelopment(pid)
-                try? await Task.sleep(for: .seconds(4))
+                try? await Task.sleep(for: .seconds(8))
                 continue
             case "timer", "timer-pause", "timer-stop":
                 // The timer on today's focus (or the busiest project), as if started 1:12:05 ago; no apps are opened.
@@ -100,7 +100,7 @@ enum Snapshotter {
                 case "timer-pause": app.pauseTimer()
                 default:
                     app.stopTimer()
-                    try? await Task.sleep(for: .seconds(5)) // apps quit, then the desktop is removed
+                    try? await Task.sleep(for: .seconds(30)) // windows close, apps quit, then the desktop is removed
                 }
                 try? await Task.sleep(for: .seconds(0.5))
                 continue

@@ -119,8 +119,8 @@ struct LaunchSetSheet: View {
                 .background(Theme.yellow.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
                 .transition(Motion.transition(Motion.rise))
             }
-            option(tr("По «Стоп» закрывать открытые приложения", "Quit opened apps on “Stop”"),
-                   tr("Только те, что Orbit запустил сам. Терминал с агентом остаётся — агент мог ещё работать", "Only the ones Orbit launched itself. The terminal with the agent stays — it may still be working"),
+            option(tr("По «Стоп» закрывать все окна на столе проекта", "Close every window on the project desktop on “Stop”"),
+                   tr("Приложение без окон на других столах завершится. Если что-то спросит про несохранённое — Orbit подождёт вас", "Apps with no windows on other desktops quit. If one asks about unsaved work, Orbit waits for you"),
                    isOn: Binding(get: { app.config.devCloseOnStop }, set: { app.config.devCloseOnStop = $0; app.saveConfig() }))
         }
     }

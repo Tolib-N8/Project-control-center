@@ -75,7 +75,7 @@ Uncommitted for over a day, branch behind `main`, an agent reverting its own edi
 <td valign="top">
 
 ### 🌅 Always on
-Checks every 15 minutes, a morning brief at 9:00, an automatic plan on Sunday evening, macOS notifications. **Start development** opens the project's own set of apps and links (terminal with the agent, your editor on the project folder, `localhost:3000`, Figma…) and starts a timer that ticks live in the menu bar, with pause, stop and today's progress against the plan. Each session gets its own desktop: Orbit adds one through Mission Control (Accessibility permission), and **Stop** quits the apps it launched and removes the desktop.
+Checks every 15 minutes, a morning brief at 9:00, an automatic plan on Sunday evening, macOS notifications. **Start development** opens the project's own set of apps and links (terminal with the agent, your editor on the project folder, `localhost:3000`, Figma…) and starts a timer that ticks live in the menu bar, with pause, stop and today's progress against the plan. Each session gets its own desktop: Orbit adds one through Mission Control (Accessibility permission), and **Stop** closes every window on that desktop (apps ask about unsaved work as usual), quits apps left without windows, removes the desktop and takes you back where you were. A project that is already open in your editor on another desktop stays there — macOS doesn't let apps move other apps' windows between desktops.
 
 </td>
 </tr>

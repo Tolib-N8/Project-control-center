@@ -67,6 +67,8 @@ final class AppState {
     /// Ticks every second while the timer runs, so time on screen and in the menu bar stays live.
     var timerNow = Date()
     var clockTimer: Timer?
+    /// "Стоп" is waiting for apps to confirm closing before it removes the project's desktop.
+    var desktopCleanup: DesktopCleanup?
     private var lastGitHubSync: Date?
 
     // Derived, recomputed after every refresh.

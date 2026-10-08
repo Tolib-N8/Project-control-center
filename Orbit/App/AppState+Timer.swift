@@ -27,6 +27,7 @@ extension AppState {
         let runningBefore = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
         let wantsDesktop = config.devNewDesktop && !items.isEmpty
         startTimer(projectId)
+        let sessionStart = worklog.current?.sessionStart
         Task {
             var desktop: SpaceManager.Desktop?
             if wantsDesktop {
@@ -43,12 +44,21 @@ extension AppState {
             if !failed.isEmpty {
                 toast = tr("Не открылось: \(failed.joined(separator: ", "))", "Couldn’t open: \(failed.joined(separator: ", "))")
             }
-            // Only apps Orbit actually launched are closed on stop; the terminal stays, an agent may still be working.
+            // Activating an app that already has windows elsewhere can pull macOS to that desktop; come back.
+            if let desktop, let id = desktop.spaceID {
+                try? await Task.sleep(for: .seconds(1.5))
+                if Spaces.active() != id { _ = await Task.detached { SpaceManager.switchTo(desktop) }.value }
+            }
+            // Without a desktop of its own, "Стоп" quits only the apps launched here.
             let launched = items.compactMap { item -> String? in
                 guard case .app(let path) = item.kind, let id = Bundle(path: path)?.bundleIdentifier, !runningBefore.contains(id) else { return nil }
                 return id
             }
-            guard worklog.current?.projectId == projectId else { return }
+            // Stopped (or switched) while the desktop was being set up: tidy up right away.
+            guard worklog.current?.projectId == projectId, worklog.current?.sessionStart == sessionStart else {
+                if let desktop { await clearDesktop(desktop, closeWindows: config.devCloseOnStop) }
+                return
+            }
             worklog.current?.openedApps = launched
             worklog.current?.desktop = desktop
             saveWorklog()
@@ -66,7 +76,8 @@ extension AppState {
             guard FileManager.default.fileExists(atPath: path) else { return false }
             let app = URL(fileURLWithPath: path)
             let config = NSWorkspace.OpenConfiguration()
-            if item.opensFolder {
+            // Terminals always get a new window in the project folder, so it lands on the project's desktop.
+            if item.opensFolder || LaunchSet.isTerminal(path) {
                 NSWorkspace.shared.open([URL(fileURLWithPath: project.path)], withApplicationAt: app, configuration: config)
             } else {
                 NSWorkspace.shared.openApplication(at: app, configuration: config)
@@ -107,16 +118,83 @@ extension AppState {
 
     /// Quits what "Начать разработку" launched, then removes its desktop. Apps ask about unsaved work themselves.
     private func cleanUp(after session: WorkLog.Current) {
-        let apps = config.devCloseOnStop ? session.openedApps ?? [] : []
-        for id in apps {
-            for app in NSRunningApplication.runningApplications(withBundleIdentifier: id) { app.terminate() }
+        guard let desktop = session.desktop else {
+            // No desktop of its own: quit what "Начать разработку" launched, as before.
+            guard config.devCloseOnStop else { return }
+            for id in session.openedApps ?? [] {
+                for app in NSRunningApplication.runningApplications(withBundleIdentifier: id) { app.terminate() }
+            }
+            return
         }
-        guard let desktop = session.desktop else { return }
-        Task.detached {
-            // Give the apps a moment to close so their windows don't hop to the next desktop.
-            try? await Task.sleep(for: .seconds(apps.isEmpty ? 0.2 : 1.5))
-            SpaceManager.remove(desktop)
+        let closeWindows = config.devCloseOnStop
+        Task { await clearDesktop(desktop, closeWindows: closeWindows) }
+    }
+
+    /// Closes every window on the project's desktop, quits apps left without windows anywhere, then removes the
+    /// desktop. If an app asks to confirm, waits for you (up to 10 minutes) and removes the desktop afterwards.
+    private func clearDesktop(_ desktop: SpaceManager.Desktop, closeWindows: Bool) async {
+        #if DEBUG
+        func trace(_ s: String) { print("[desktop] \(Date().timeIntervalSince1970) \(s)") }
+        #else
+        func trace(_ s: String) {}
+        #endif
+        trace("clear \(desktop) close=\(closeWindows)")
+        // A 1.1.0 record knows the desktop only by title, which may now point at another desktop: never close windows then.
+        guard closeWindows, desktop.spaceID != nil else {
+            await Task.detached { SpaceManager.remove(desktop) }.value
+            return
         }
+        // Only ever touch windows after confirming, by id, that this is the project's desktop.
+        guard await Task.detached(operation: { SpaceManager.switchTo(desktop) }).value else {
+            if SpaceManager.exists(desktop) {
+                toast = tr("Не удалось перейти на стол проекта — окна не тронуты", "Couldn’t reach the project desktop — windows left as they are")
+            }
+            return
+        }
+        trace("on desktop, active=\(Spaces.active() ?? 0)")
+        try? await Task.sleep(for: .seconds(0.4))
+        let windows = await Task.detached { DesktopCleaner.windowsOnCurrentDesktop() }.value
+        trace("windows: \(windows.map(\.appName))")
+        DesktopCleaner.close(windows)
+        let pids = Set(windows.map(\.pid))
+        let deadline = Date().addingTimeInterval(10 * 60)
+        var asked = false
+        while true {
+            try? await Task.sleep(for: .seconds(asked ? 1 : 1.5))
+            let open = windows.filter(DesktopCleaner.isOpen)
+            trace("still open: \(open.map(\.appName))")
+            DesktopCleaner.quitWindowless(pids.subtracting(open.map(\.pid)))
+            if open.isEmpty { break }
+            if !asked {
+                asked = true
+                let names = Array(Set(open.map(\.appName))).sorted()
+                desktopCleanup = DesktopCleanup(desktop: desktop, apps: names)
+                NSRunningApplication(processIdentifier: open[0].pid)?.activate()
+                toast = tr("Подтвердите закрытие в \(names.joined(separator: ", ")) — стол уберётся сам",
+                           "Confirm closing in \(names.joined(separator: ", ")) — the desktop goes away by itself")
+            }
+            // "Оставить стол" / "Убрать стол сейчас" end the wait.
+            guard desktopCleanup?.desktop == desktop else { return }
+            if Date() > deadline {
+                desktopCleanup = nil
+                return
+            }
+        }
+        desktopCleanup = nil
+        try? await Task.sleep(for: .seconds(0.5))
+        let removed = await Task.detached { SpaceManager.remove(desktop) }.value
+        trace("removed=\(removed) active=\(Spaces.active() ?? 0) ids=\(Spaces.ids())")
+    }
+
+    /// Stops waiting for confirmations and removes the desktop; windows left on it move next door.
+    func removeDesktopNow() {
+        guard let cleanup = desktopCleanup else { return }
+        desktopCleanup = nil
+        Task.detached { SpaceManager.remove(cleanup.desktop) }
+    }
+
+    func keepDesktop() {
+        desktopCleanup = nil
     }
 
     private func timerChanged() {
