@@ -293,6 +293,92 @@ enum AnalysisService {
         return Array(drafts.prefix(12))
     }
 
+    // MARK: - Project memory for agents
+
+    static let memorySchema: [String: Any] = {
+        let list: [String: Any] = ["type": "array", "items": string]
+        return object([
+            "summary": string,
+            "state": list,
+            "done": ["type": "array", "items": object(["date": string, "text": string])],
+            "verify": ["type": "array", "items": object(["command": string, "note": string])],
+            "decisions": list,
+            "pitfalls": list,
+            "next": list,
+        ])
+    }()
+
+    static func memoryFacts(_ p: ProjectSnapshot, health: Int, openTasks: [ProjectTask], planned: [String], previous: ProjectMemory?) -> [String: Any] {
+        var facts = projectFacts(p, health: health, signals: [])
+        facts["recent_sessions"] = p.sessions.prefix(12).map(sessionFacts)
+        facts["verification_commands"] = CommandHistory.observed(Array(p.sessions.prefix(30))).map {
+            ["command": $0.command, "runs": $0.runs, "is_test": $0.isTest, "passed_runs": $0.passed, "failed_runs": $0.failed]
+        }
+        facts["open_tasks"] = openTasks.prefix(10).map { ["title": $0.title, "urgent": $0.urgent, "folder": $0.area ?? ""] }
+        facts["planned_days"] = planned
+        if let previous, let data = try? JSONEncoder().encode(previous), let json = try? JSONSerialization.jsonObject(with: data) {
+            facts["previous_memory"] = json
+        }
+        return facts
+    }
+
+    static func memoryRequest(_ facts: [String: Any]) -> (AIRequest, String) {
+        let json = JSONText.encode(facts)
+        let prompt = tr("""
+        Ты ведёшь память проекта для ИИ-агентов программирования (Claude Code, Codex). Новая сессия агента прочитает её \
+        перед работой, чтобы не начинать с нуля. Обнови память по фактам ниже; previous_memory — прошлая версия: \
+        сохрани из неё то, что всё ещё верно, дополни новым, убери устаревшее.
+        summary — 2–3 предложения: что это за проект, стек, главные папки.
+        state — коротко текущее состояние: ветка, что работает, что сломано или не закоммичено.
+        done — что сделано, новые сверху, date в формате yyyy-MM-dd, text — результат и затронутые файлы, без воды. До 10 пунктов.
+        verify — как собрать, запустить и проверить проект: только команды из verification_commands или из прошлой памяти, \
+        note — что команда проверяет и надёжна ли она (проходила / падала). Ничего не выдумывай.
+        decisions — принятые решения и договорённости с причиной («X, потому что Y»), если они видны из сессий.
+        pitfalls — на чём спотыкались: ошибки, откаты, падающие тесты, чего избегать.
+        next — что делать дальше: открытые задачи, незаконченное из сессий, ближайшие дни плана. Конкретно, до 8 пунктов.
+        Пиши для агента, кратко и по делу. Никогда не включай токены, пароли и ключи. Пустые разделы — пустые массивы.
+
+        Факты (JSON):
+        \(json)
+        """, """
+        You keep the project memory for AI coding agents (Claude Code, Codex). A new agent session reads it before it \
+        starts so it doesn't begin from scratch. Update the memory from the facts below; previous_memory is the last \
+        version: keep what is still true, add what's new, drop what is outdated.
+        summary — 2–3 sentences: what the project is, the stack, the main folders.
+        state — the current state in short: branch, what works, what is broken or uncommitted.
+        done — what's been done, newest first, date as yyyy-MM-dd, text — the outcome and files touched, no filler. Up to 10.
+        verify — how to build, run and check the project: only commands from verification_commands or the previous memory, \
+        note — what the command checks and whether it is reliable (passed / failed). Don't invent anything.
+        decisions — decisions and conventions with the reason ("X, because Y") when the sessions show them.
+        pitfalls — what tripped agents up: errors, rollbacks, failing tests, what to avoid.
+        next — what to do next: open tasks, unfinished work from sessions, the coming planned days. Concrete, up to 8.
+        Write for an agent, short and to the point. Never include tokens, passwords or keys. Empty sections are empty arrays.
+
+        Facts (JSON):
+        \(json)
+        """)
+        return (AIRequest(system: system, prompt: prompt, schema: memorySchema, schemaName: "project_memory"), hash(json + languageSalt))
+    }
+
+    static func parseMemory(_ obj: [String: Any]) throws -> ProjectMemory {
+        func list(_ key: String) -> [String] {
+            (obj[key] as? [Any] ?? []).compactMap { ($0 as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        }
+        guard let summary = (obj["summary"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !summary.isEmpty else {
+            throw AIError.badResponse(tr("модель не вернула память", "the model returned no memory"))
+        }
+        let done = (obj["done"] as? [[String: Any]] ?? []).compactMap { d -> ProjectMemory.Done? in
+            guard let text = (d["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
+            return ProjectMemory.Done(date: d["date"] as? String ?? "", text: text)
+        }
+        let verify = (obj["verify"] as? [[String: Any]] ?? []).compactMap { v -> ProjectMemory.Check? in
+            guard let command = (v["command"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !command.isEmpty else { return nil }
+            return ProjectMemory.Check(command: command, note: v["note"] as? String ?? "")
+        }
+        return ProjectMemory(summary: summary, state: list("state"), done: done, verify: verify,
+                             decisions: list("decisions"), pitfalls: list("pitfalls"), next: list("next"))
+    }
+
     // MARK: - Helpers
 
     private static let string: [String: Any] = ["type": "string"]

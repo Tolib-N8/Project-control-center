@@ -909,3 +909,149 @@ final class WorkTimerTests: XCTestCase {
         XCTAssertEqual(Duration.clock(4325), "1:12:05")
     }
 }
+
+final class ProjectMemoryTests: XCTestCase {
+    private var saved = L10n.current
+    override func setUp() { super.setUp(); saved = L10n.current; L10n.current = .ru }
+    override func tearDown() { L10n.current = saved; super.tearDown() }
+
+    private func session(_ title: String, events: [SessionEvent] = [], status: SessionStatus = .done, error: String? = nil) -> AgentSession {
+        var s = AgentSession(id: UUID().uuidString, agent: .claude, resumeId: nil, logPath: "", cwd: "/p", title: title, firstPrompt: title,
+                             finalMessage: "Готово: \(title).", model: nil, start: Date(timeIntervalSince1970: 1_000_000), end: Date(timeIntervalSince1970: 1_000_600),
+                             activeSeconds: 600, filesTouched: [], filesRead: 0, linesAdded: 10, linesRemoved: 2, tokens: 0, testsPassed: nil,
+                             testsFailed: nil, lastFailingTest: nil, reverts: 0, editsPerFile: [:], lastError: error, events: events)
+        s.projectId = "/p"
+        s.status = status
+        return s
+    }
+
+    private func event(_ kind: SessionEventKind, _ text: String, passed: Int? = nil, failed: Int? = nil) -> SessionEvent {
+        SessionEvent(time: Date(), kind: kind, text: text, passed: passed, failed: failed)
+    }
+
+    func testObservedCommandsKeepBuildAndTestOnly() {
+        let s = session("a", events: [
+            event(.test, "cd /Users/me/p && xcodebuild test -scheme Orbit 2>&1 | tail -5", passed: 40, failed: 0),
+            event(.test, "xcodebuild test -scheme Orbit", passed: 39, failed: 1),
+            event(.bash, "npm run build"),
+            event(.bash, "ls -la"),
+            event(.bash, "curl -H 'Authorization: Bearer abcdefghijklmnop123' https://api"),
+        ])
+        let observed = CommandHistory.observed([s])
+        XCTAssertEqual(observed.map(\.command), ["xcodebuild test -scheme Orbit", "npm run build"])
+        XCTAssertEqual(observed.first?.passed, 1)
+        XCTAssertEqual(observed.first?.failed, 1)
+    }
+
+    func testRedaction() {
+        XCTAssertEqual(Redact.text("key sk-ant-abcdefghijklmnopqrstu end"), "key [скрыто] end")
+        XCTAssertEqual(Redact.text("export TOKEN=supersecret123"), "export [скрыто]")
+        XCTAssertEqual(Redact.text("git clone https://user:pass@github.com/x"), "git clone https[скрыто]github.com/x")
+        XCTAssertTrue(Redact.isClean("xcodebuild test -scheme Orbit"))
+        XCTAssertEqual(Redact.text("SUPABASE_KEY=test SECRET_KEY=abc123 npm test"), "[скрыто] [скрыто] npm test")
+        XCTAssertEqual(Redact.text("DB_PASSWORD='p4ss' GITHUB_TOKEN=x pytest"), "[скрыто] [скрыто] pytest")
+        XCTAssertEqual(Redact.text("NODE_ENV=test npm test"), "NODE_ENV=test npm test")
+        XCTAssertEqual(Redact.text(NSHomeDirectory() + "/Projects/x"), "~/Projects/x")
+        XCTAssertEqual(CommandHistory.normalize("cd /Users/me/p; docker compose up"), "docker compose up")
+    }
+
+    func testRenderSkipsEmptySectionsAndStaysWithinLimit() {
+        var m = ProjectMemory(summary: "Orbit — SwiftUI.", state: ["Ветка main"], done: [], verify: [.init(command: "xcodebuild test", note: "тесты")],
+                              decisions: [], pitfalls: [], next: ["Выпустить 2.0"])
+        let short = MemoryMarkdown.render(m, project: "Orbit", updated: Date(), source: "Claude", sessions: 3)
+        XCTAssertTrue(short.contains("## Как проверять"))
+        XCTAssertTrue(short.contains("`xcodebuild test` — тесты"))
+        XCTAssertFalse(short.contains("## Решения"))
+        m.done = (0..<200).map { .init(date: "2026-10-0\($0 % 9 + 1)", text: String(repeating: "очень длинный пункт ", count: 10)) }
+        m.pitfalls = (0..<50).map { "Камень \($0) " + String(repeating: "x", count: 100) }
+        let long = MemoryMarkdown.render(m, project: "Orbit", updated: Date(), source: "Claude", sessions: 12)
+        XCTAssertLessThanOrEqual(long.count, MemoryMarkdown.limit)
+        XCTAssertTrue(long.contains("## Что дальше"))
+    }
+
+    func testRedactedMemoryHasNoSecrets() {
+        let m = ProjectMemory(summary: "s", state: [], done: [], verify: [.init(command: "SECRET_KEY=abc123 pytest", note: "ok")],
+                              decisions: [], pitfalls: [], next: [])
+        XCTAssertEqual(m.redacted().verify.first?.command, "[скрыто] pytest")
+    }
+
+    func testParseMemory() throws {
+        let obj: [String: Any] = ["summary": " Проект ", "state": ["a", " "], "done": [["date": "2026-10-08", "text": "сделал"], ["date": "", "text": ""]],
+                                  "verify": [["command": "make test", "note": "проходит"]], "decisions": [], "pitfalls": ["x"], "next": ["y"]]
+        let m = try AnalysisService.parseMemory(obj)
+        XCTAssertEqual(m.summary, "Проект")
+        XCTAssertEqual(m.state, ["a"])
+        XCTAssertEqual(m.done.count, 1)
+        XCTAssertEqual(m.verify.first?.command, "make test")
+        XCTAssertThrowsError(try AnalysisService.parseMemory(["summary": ""]))
+    }
+
+    func testSchemaIsStrict() {
+        let s = AnalysisService.memorySchema
+        XCTAssertEqual(s["required"] as? [String], ["decisions", "done", "next", "pitfalls", "state", "summary", "verify"])
+        XCTAssertEqual(s["additionalProperties"] as? Bool, false)
+    }
+
+    func testHeuristicMemory() {
+        let sessions = [
+            session("Добавить оплату", events: [event(.test, "npm test", passed: 12, failed: 0)]),
+            session("Чинить вход", status: .rolledBack, error: "TypeError: x is undefined"),
+        ]
+        let snap = ProjectSnapshot(config: ProjectConfig(path: "/p", name: "p", colorIndex: 0), repo: RepoStatus(), sessions: sessions)
+        let m = MemoryHeuristics.build(snap, openTasks: [ProjectTask(projectId: "/p", title: "Выпустить релиз")], health: 80)
+        XCTAssertEqual(m.verify.first?.command, "npm test")
+        XCTAssertEqual(m.next.first, "Выпустить релиз")
+        XCTAssertTrue(m.done.contains { $0.text.contains("Claude Code") })
+        XCTAssertTrue(m.pitfalls.contains { $0.contains("Чинить вход") })
+    }
+}
+
+final class MemoryWriterTests: XCTestCase {
+    func testBlockInsertReplaceAndKeepOwnText() {
+        let fresh = MemoryWriter.withBlock("one", in: "")
+        XCTAssertEqual(fresh, "<!-- orbit:memory -->\none\n<!-- /orbit:memory -->\n")
+        let own = "# My rules\n\nUse tabs.\n"
+        let added = MemoryWriter.withBlock("one", in: own)
+        XCTAssertTrue(added.hasPrefix("# My rules\n\nUse tabs.\n\n<!-- orbit:memory -->"))
+        let replaced = MemoryWriter.withBlock("two", in: added)
+        XCTAssertTrue(replaced.contains("two"))
+        XCTAssertFalse(replaced.contains("one"))
+        XCTAssertTrue(replaced.hasPrefix("# My rules"))
+        XCTAssertEqual(MemoryWriter.stripBlock(replaced).trimmingCharacters(in: .whitespacesAndNewlines), "# My rules\n\nUse tabs.")
+    }
+
+    func testExcludeAddsOnce() {
+        XCTAssertEqual(MemoryWriter.excludeAdditions([".orbit/", "CLAUDE.local.md"], existing: "# git\n.orbit/\n"), ["CLAUDE.local.md"])
+        XCTAssertEqual(MemoryWriter.excludeAdditions(["AGENTS.md"], existing: "/AGENTS.md\n"), [])
+    }
+
+    func testWritesFilesAndHidesThemFromGit() throws {
+        let repo = FileManager.default.temporaryDirectory.appendingPathComponent("orbit-mem-\(UUID().uuidString)").path
+        try FileManager.default.createDirectory(atPath: repo, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: repo) }
+        XCTAssertTrue(Shell.git(repo, ["init", "-q"]).ok)
+        try "# Team rules\n".write(toFile: repo + "/AGENTS.md", atomically: true, encoding: .utf8)
+        XCTAssertTrue(Shell.git(repo, ["add", "AGENTS.md"]).ok)
+        XCTAssertTrue(Shell.git(repo, ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"]).ok)
+
+        try MemoryWriter.write("# Память\n\nТекст", to: repo, gitRepo: repo)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: repo + "/.orbit/memory.md"))
+        XCTAssertTrue(try String(contentsOfFile: repo + "/CLAUDE.local.md", encoding: .utf8).contains("@.orbit/memory.md"))
+        let agents = try String(contentsOfFile: repo + "/AGENTS.md", encoding: .utf8)
+        XCTAssertTrue(agents.hasPrefix("# Team rules") && agents.contains("Текст"))
+
+        // Only the tracked AGENTS.md shows up in git, and Orbit doesn't count it as uncommitted.
+        let status = GitService.status(repo)
+        XCTAssertEqual(status.changes.map(\.path), ["AGENTS.md"])
+        XCTAssertTrue(MemoryWriter.onlyOrbitChanged("AGENTS.md", in: repo))
+        XCTAssertTrue(MemoryWriter.hidingOwnChanges(status, repo: repo).changes.isEmpty)
+        // A real edit outside the block still counts.
+        try (agents + "\nNew team rule.\n").write(toFile: repo + "/AGENTS.md", atomically: true, encoding: .utf8)
+        XCTAssertFalse(MemoryWriter.onlyOrbitChanged("AGENTS.md", in: repo))
+
+        try MemoryWriter.remove(from: repo)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: repo + "/.orbit"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: repo + "/CLAUDE.local.md"))
+        XCTAssertFalse(try String(contentsOfFile: repo + "/AGENTS.md", encoding: .utf8).contains("orbit:memory"))
+    }
+}

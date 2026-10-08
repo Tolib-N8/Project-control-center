@@ -84,6 +84,15 @@ enum Snapshotter {
                 TaskGoalSheet.debugGoal = nil
                 try? await Task.sleep(for: .seconds(0.8))
                 continue
+            case _ where name == "memory" || name.hasPrefix("memory:"):
+                // memory[:<project>] builds the memory with the configured model (use with --memory-out).
+                let wanted = name.split(separator: ":", maxSplits: 1).dropFirst().first.map(String.init)
+                guard let pid = (wanted.flatMap { w in app.activeSnapshots.first { $0.config.name == w } }
+                                 ?? app.activeSnapshots.max(by: { $0.sessions.count < $1.sessions.count }))?.config.id else { continue }
+                app.screen = .project(pid)
+                await app.refreshMemory(pid, force: true)
+                try? await Task.sleep(for: .seconds(1))
+                continue
             case "develop":
                 // The real "Начать разработку" on today's focus: apps, desktop and all.
                 guard let pid = app.todayFocus?.projectId else { continue }
@@ -103,6 +112,12 @@ enum Snapshotter {
                     try? await Task.sleep(for: .seconds(30)) // windows close, apps quit, then the desktop is removed
                 }
                 try? await Task.sleep(for: .seconds(0.5))
+                continue
+            case "memory-panel":
+                guard let pid = app.activeSnapshots.max(by: { $0.sessions.count < $1.sessions.count })?.config.id else { continue }
+                renderOffscreen(MemoryPanel(projectId: pid).environment(app).padding(12).background(Theme.bg), width: 404,
+                                to: "\(dir)/memory-panel-\(L10n.current.rawValue).png")
+                try? await Task.sleep(for: .seconds(1.6))
                 continue
             case "menu-panel":
                 renderOffscreen(MenuBarPanel().environment(app), width: 300, to: "\(dir)/menu-panel\(app.timerProjectId == nil ? "-idle" : app.timerPaused ? "-paused" : "").png")

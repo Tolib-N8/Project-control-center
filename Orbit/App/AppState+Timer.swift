@@ -23,6 +23,7 @@ extension AppState {
 
     func startDevelopment(_ projectId: String) {
         guard let project = project(projectId) else { return }
+        ensureFreshMemory(projectId)
         let items = LaunchSet.items(for: project).filter(\.enabled)
         let runningBefore = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
         let wantsDesktop = config.devNewDesktop && !items.isEmpty

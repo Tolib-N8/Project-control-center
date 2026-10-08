@@ -67,6 +67,9 @@ final class AppState {
     /// Ticks every second while the timer runs, so time on screen and in the menu bar stays live.
     var timerNow = Date()
     var clockTimer: Timer?
+    /// Project memory for agents, per project (~/.orbit/memory-state.json).
+    var memoryRecords: [String: MemoryRecord] = [:]
+    var memoryBusy: Set<String> = []
     /// "Стоп" is waiting for apps to confirm closing before it removes the project's desktop.
     var desktopCleanup: DesktopCleanup?
     private var lastGitHubSync: Date?
@@ -131,6 +134,7 @@ final class AppState {
         signals = Store.load([Signal].self, from: "signals.json") ?? []
         tasks = Store.load([ProjectTask].self, from: "tasks.json") ?? []
         github = Store.load([String: GitHubRepo].self, from: "github.json") ?? [:]
+        memoryRecords = Store.load([String: MemoryRecord].self, from: "memory-state.json") ?? [:]
         worklog = Store.load(WorkLog.self, from: "worklog.json") ?? WorkLog()
         worklog.recover(now: Date())
         worklog.prune(before: Date().addingTimeInterval(-120 * 86400))
@@ -209,6 +213,7 @@ final class AppState {
     func assignTask(_ id: UUID, to agent: AgentKind) {
         guard let task = tasks.first(where: { $0.id == id }) else { return }
         updateTask(id) { $0.agent = agent; $0.assignedAt = Date() }
+        ensureFreshMemory(task.projectId)
         runAgent(task.projectId, prompt: TaskAgent.prompt(for: task), agent: agent)
         toast = tr("\(agent.title) получил задачу", "\(agent.title) got the task")
         // Pick up the new session soon instead of waiting for the regular refresh.
@@ -250,7 +255,7 @@ final class AppState {
         // Git status per project, in parallel.
         let statuses = await withTaskGroup(of: (String, RepoStatus).self) { group in
             for p in projects {
-                group.addTask { (p.id, GitService.status(p.path)) }
+                group.addTask { (p.id, MemoryWriter.hidingOwnChanges(GitService.status(p.path), repo: p.path)) }
             }
             var result: [String: RepoStatus] = [:]
             for await (id, status) in group {
@@ -285,6 +290,7 @@ final class AppState {
         runSchedules()
         if config.ai.autoAnalyze { analyzeProjects() }
         Task { await refreshGitHub() }
+        refreshMemoriesAfterSync()
     }
 
     /// PRs and CI through `gh`, at most every 5 minutes unless forced; runs after the local refresh.

@@ -95,6 +95,18 @@ Follows your macOS language, switches live in Settings. AI conclusions come in t
 </tr>
 </table>
 
+## 🧭 Project memory for agents
+
+New Claude Code and Codex sessions shouldn't start with an empty head. Orbit keeps a memory for every project — what it is, what's been done, **how to build and verify it** (only commands agents actually ran, marked passing or failing), decisions, pitfalls and what's next — and puts it where agents look at startup:
+
+| File | Read by |
+| --- | --- |
+| `.orbit/memory.md` | the memory itself |
+| `CLAUDE.local.md` → `@.orbit/memory.md` | Claude Code |
+| a block in `AGENTS.md` | Codex (it has no imports) |
+
+Orbit only writes between `<!-- orbit:memory -->` markers, hides its files via `.git/info/exclude`, and doesn't count its own `AGENTS.md` block as uncommitted work. The memory is rewritten after every finished agent session and before **Start development**; your chosen model writes it (heuristics without one), building on the previous version. Tokens, passwords, secret environment variables and your home path are scrubbed. Turn it off per project on the project page.
+
 ## 🧠 AI analysis
 
 Orbit writes project summaries, next steps, a goal for the day, session breakdowns ("done / stuck / what to do next"), commit messages and briefs for agents that keep going in circles. It also **breaks a goal into tasks**: describe what you want on the project page (✨ in the *Tasks* panel), and the model suggests 3–8 ordered steps with the right folders — you untick or edit them before they're added. Pick the model in **Settings → Analysis** (*Настройки → Анализ*, <kbd>⌘</kbd> <kbd>,</kbd>) or during onboarding:
@@ -285,6 +297,7 @@ Each release ships two files: the styled **`.dmg`** for people (built by `script
 - [x] **0.9** — hand a task to Claude Code or Codex with one click, break a goal into tasks with AI, a motion for every icon
 - [x] **1.0** — GitHub: open pull requests and CI status via `gh`
 - [x] **1.1** — "Start development": per-project apps and links, a timer and a live menu bar widget
+- [x] **2.0** — project memory for Claude Code and Codex
 - [ ] Notifications in Telegram and by email
 - [ ] Cursor chat history
 - [ ] Apple notarization

@@ -164,7 +164,7 @@ final class SessionBuilder {
         } else if Self.isCommitCommand(command) {
             append(SessionEvent(time: time, kind: .commit, text: Self.commitMessage(command) ?? "git commit"))
         } else if !Self.isTestCommand(command) {
-            merge(SessionEvent(time: time, kind: .bash, text: String(command.prefix(120))))
+            merge(SessionEvent(time: time, kind: .bash, text: String(command.prefix(300))))
         }
     }
 
@@ -184,7 +184,7 @@ final class SessionBuilder {
             } else {
                 update { $0.lastFailingTest = nil }
             }
-            append(SessionEvent(time: time, kind: .test, text: String(command.prefix(120)),
+            append(SessionEvent(time: time, kind: .test, text: String(command.prefix(300)),
                                 passed: result.passed, failed: result.failed))
         } else if isError {
             let line = output.split(separator: "\n").first { !$0.trimmingCharacters(in: .whitespaces).isEmpty }

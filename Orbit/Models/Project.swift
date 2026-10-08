@@ -12,6 +12,8 @@ struct ProjectConfig: Codable, Identifiable, Hashable {
     var workDays: [Int] = []
     /// What "Начать разработку" opens; nil means the default set (terminal with the agent and an editor).
     var launch: [LaunchItem]?
+    /// Keep .orbit/memory.md and the agent blocks up to date; nil means on.
+    var memory: Bool?
 
     var displayPath: String { path.abbreviatingHome }
 }
