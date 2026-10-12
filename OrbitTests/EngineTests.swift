@@ -1055,3 +1055,112 @@ final class MemoryWriterTests: XCTestCase {
         XCTAssertFalse(try String(contentsOfFile: repo + "/AGENTS.md", encoding: .utf8).contains("orbit:memory"))
     }
 }
+
+final class TimeStatsTests: XCTestCase {
+    private var saved = L10n.current
+    override func setUp() { super.setUp(); saved = L10n.current; L10n.current = .ru }
+    override func tearDown() { L10n.current = saved; super.tearDown() }
+
+    private let cal = Week.calendar
+    /// Monday, 5 October 2026, local midnight.
+    private var monday: Date { DateFormat.isoDay.date(from: "2026-10-05")! }
+    private func at(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        cal.date(byAdding: .minute, value: hour * 60 + minute, to: cal.date(byAdding: .day, value: day, to: monday)!)!
+    }
+
+    private func session(_ start: Date, minutes: Double, window: Double? = nil, agent: AgentKind = .claude, commit: Bool = false) -> AgentSession {
+        var s = AgentSession(id: UUID().uuidString, agent: agent, resumeId: nil, logPath: "", cwd: "/a", title: "", firstPrompt: "", finalMessage: nil,
+                             model: nil, start: start, end: start.addingTimeInterval((window ?? minutes) * 60), activeSeconds: minutes * 60,
+                             filesTouched: [], filesRead: 0, linesAdded: 0, linesRemoved: 0, tokens: 0, testsPassed: nil, testsFailed: nil,
+                             lastFailingTest: nil, reverts: 0, editsPerFile: [:], lastError: nil, events: [])
+        s.projectId = "/a"
+        if commit { s.commitsInWindow = ["abc"] }
+        return s
+    }
+
+    private func project(_ id: String = "/a", _ sessions: [AgentSession] = []) -> ProjectSnapshot {
+        ProjectSnapshot(config: ProjectConfig(path: id, name: id, colorIndex: 0), repo: RepoStatus(), sessions: sessions)
+    }
+
+    func testPeriods() {
+        let week = TimePeriod.containing(at(3, 12), kind: .week)
+        XCTAssertEqual(week.start, monday)
+        XCTAssertEqual(week.days.count, 7)
+        XCTAssertEqual(week.shifted(-1).start, cal.date(byAdding: .day, value: -7, to: monday))
+        XCTAssertEqual(week.title, "5 окт — 11 окт")
+        let month = TimePeriod.containing(at(3, 12), kind: .month)
+        XCTAssertEqual(month.days.count, 31)
+        XCTAssertEqual(month.title, "Октябрь 2026")
+        XCTAssertEqual(month.shifted(-8).days.count, 28)   // February 2026
+        XCTAssertTrue(month.contains(at(20, 0)) && !month.contains(at(27, 0)))
+    }
+
+    func testDailyTotalsMatchTheWeekScreen() {
+        let timer = [WorkInterval(projectId: "/a", start: at(0, 10), end: at(0, 12)),
+                     WorkInterval(projectId: "/a", start: at(1, 23), end: at(2, 1))]            // crosses midnight
+        let sessions = [session(at(0, 11), minutes: 40), session(at(0, 15), minutes: 30), session(at(3, 9), minutes: 90)]
+        let daily = TimeEngine.dailySeconds(sessions, timer: timer, now: at(6, 0))
+        for d in 0..<5 {
+            let day = cal.date(byAdding: .day, value: d, to: monday)!
+            XCTAssertEqual((daily[day] ?? 0) / 3600, Activity.hours(sessions, timer: timer, on: day, now: at(6, 0)), accuracy: 0.001, "day \(d)")
+        }
+        // Monday: 2 h of timer + the 30 min session outside it; the 40 min one inside the timer isn't counted twice.
+        XCTAssertEqual((daily[monday] ?? 0) / 3600, 2.5, accuracy: 0.001)
+    }
+
+    func testStreak() {
+        func day(_ n: Int) -> Date { cal.date(byAdding: .day, value: n, to: monday)! }
+        let hours: [Date: Double] = [day(0): 2, day(1): 1, day(2): 0.2, day(3): 3, day(4): 1, day(5): 0.6]
+        XCTAssertEqual(TimeEngine.streak(hours, today: day(5)).current, 3)
+        XCTAssertEqual(TimeEngine.streak(hours, today: day(5)).best, 3)
+        // Today hasn't reached half an hour yet: yesterday's run still stands.
+        XCTAssertEqual(TimeEngine.streak(hours, today: day(6)).current, 3)
+        XCTAssertEqual(TimeEngine.streak(hours, today: day(8)).current, 0)
+        XCTAssertEqual(TimeEngine.streak([:], today: day(0)).best, 0)
+    }
+
+    func testHeatCutsTimerByHour() {
+        let timer = [WorkInterval(projectId: "/a", start: at(1, 13, 30), end: at(1, 15, 10))]   // Tuesday
+        let heat = TimeEngine.heat(projects: [project()], worklog: timer, from: monday, to: at(7, 0), now: at(7, 0))
+        XCTAssertEqual(heat[1][13], 0.5, accuracy: 0.001)
+        XCTAssertEqual(heat[1][14], 1.0, accuracy: 0.001)
+        XCTAssertEqual(heat[1][15], 10.0 / 60, accuracy: 0.001)
+        XCTAssertEqual(heat.flatMap { $0 }.reduce(0, +), 100.0 / 60, accuracy: 0.001)
+        // An agent active 30 of 60 minutes spreads its half hour over its window.
+        let agent = TimeEngine.heat(projects: [project("/a", [session(at(2, 9), minutes: 30, window: 60)])], worklog: [], from: monday, to: at(7, 0), now: at(7, 0))
+        XCTAssertEqual(agent[2][9], 0.5, accuracy: 0.001)
+    }
+
+    func testComputeSplitsYouAndAgents() {
+        let timer = [WorkInterval(projectId: "/a", start: at(0, 10), end: at(0, 12))]
+        let sessions = [session(at(0, 10, 30), minutes: 60, commit: true),          // fully under the timer
+                        session(at(2, 20), minutes: 45, agent: .codex)]              // on its own
+        var plan = WeekPlan(weekKey: "2026-10-05")
+        plan.blocks = [PlanBlock(projectId: "/a", day: 0, hours: 4), PlanBlock(projectId: "/a", day: 4, hours: 2)]
+        let stats = TimeEngine.compute(period: TimePeriod.containing(monday, kind: .week), projects: [project("/a", sessions)],
+                                       worklog: timer, plans: [plan.weekKey: plan], now: at(3, 12))
+        XCTAssertEqual(stats.total, 2.75, accuracy: 0.001)
+        XCTAssertEqual(stats.timerHours, 2, accuracy: 0.001)
+        XCTAssertEqual(stats.agentHours[.codex] ?? 0, 0.75, accuracy: 0.001)
+        XCTAssertNil(stats.agentHours[.claude])                                       // nothing outside the timer
+        XCTAssertEqual(stats.sessions, 2)
+        XCTAssertEqual(stats.sessionsWithCommit, 1)
+        XCTAssertEqual(stats.planned, 6, accuracy: 0.001)
+        XCTAssertEqual(stats.planned(through: at(3, 0)), 4, accuracy: 0.001)
+        XCTAssertEqual(stats.bestDay?.date, monday)
+        XCTAssertEqual(stats.projects.first?.sessions, 2)
+        XCTAssertEqual(stats.averagePerWorkedDay, 1.375, accuracy: 0.001)
+        XCTAssertFalse(stats.isEmpty)
+        let empty = TimeEngine.compute(period: TimePeriod.containing(monday, kind: .week).shifted(-3), projects: [project("/a", sessions)],
+                                       worklog: timer, plans: [:], now: at(3, 12))
+        XCTAssertTrue(empty.isEmpty)
+    }
+
+    func testDurationTextAndPeak() {
+        XCTAssertEqual(TimeEngine.text(hours: 0.62), "37 мин")
+        XCTAssertEqual(TimeEngine.text(hours: 1.2), "1 ч 12 мин")
+        XCTAssertEqual(TimeEngine.text(hours: 21.4), "21,5 ч")
+        XCTAssertEqual(TimeEngine.densestRun([0, 1, 5, 5, 1, 0, 0], share: 0.6), 2...3)
+        XCTAssertNil(TimeEngine.densestRun([0, 0], share: 0.6))
+    }
+}

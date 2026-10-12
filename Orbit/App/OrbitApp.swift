@@ -42,6 +42,7 @@ struct OrbitApp: App {
                 Button(tr("Сессии агентов", "Agent Sessions")) { app.screen = .sessions }.keyboardShortcut("3")
                 Button("Git") { app.screen = .git }.keyboardShortcut("4")
                 Button(tr("Сигналы", "Signals")) { app.screen = .signals }.keyboardShortcut("5")
+                Button(tr("Время", "Time")) { app.screen = .time }.keyboardShortcut("6")
             }
         }
 
@@ -146,6 +147,7 @@ struct MainView: View {
         case .sessions: SessionsView()
         case .git: GitView()
         case .signals: SignalsView()
+        case .time: TimeView()
         }
     }
 }

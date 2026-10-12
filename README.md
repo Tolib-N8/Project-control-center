@@ -7,7 +7,7 @@
 **Vibe coding without the chaos.**<br>
 Your projects, your AI agents and your week — in one orbit.
 
-![Version](https://img.shields.io/badge/version-1.1.1-C8F169?style=flat-square&labelColor=15171A)
+![Version](https://img.shields.io/badge/version-1.2.0-C8F169?style=flat-square&labelColor=15171A)
 ![Platform](https://img.shields.io/badge/macOS-15%2B-ECEDEF?style=flat-square&logo=apple&logoColor=white&labelColor=15171A)
 ![Swift](https://img.shields.io/badge/SwiftUI-native-F59E5B?style=flat-square&logo=swift&logoColor=white&labelColor=15171A)
 ![Local first](https://img.shields.io/badge/data-stays%20local-5AD48A?style=flat-square&labelColor=15171A)
@@ -90,6 +90,17 @@ A to-do list on every project page: type a task and press Enter. Right-click to 
 
 ### 🌐 English and Russian
 Follows your macOS language, switches live in Settings. AI conclusions come in the language you pick.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### ⏱ Time
+Where the hours really went: the development timer plus agent work outside it, counted once. By week or month — totals against the previous period, a streak, plan versus actual, a day-by-day chart in project colours, a weekday × hour heatmap of when you work, and how much was you versus the agents.
+
+</td>
+<td valign="top">
 
 </td>
 </tr>
@@ -193,7 +204,7 @@ A 0–100 score. Penalties: changes uncommitted for more than a day, a branch be
 
 | | |
 | --- | --- |
-| <kbd>⌘</kbd> <kbd>1</kbd> … <kbd>5</kbd> | Week · Projects · Sessions · Git · Signals |
+| <kbd>⌘</kbd> <kbd>1</kbd> … <kbd>6</kbd> | Week · Projects · Sessions · Git · Signals · Time |
 | <kbd>⌘</kbd> <kbd>R</kbd> | Refresh data |
 | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>P</kbd> | Plan the week |
 | <kbd>⌘</kbd> <kbd>,</kbd> | Settings (AI provider, language, updates) |
@@ -297,6 +308,7 @@ Each release ships two files: the styled **`.dmg`** for people (built by `script
 - [x] **0.9** — hand a task to Claude Code or Codex with one click, break a goal into tasks with AI, a motion for every icon
 - [x] **1.0** — GitHub: open pull requests and CI status via `gh`
 - [x] **1.1** — "Start development": per-project apps and links, a timer and a live menu bar widget
+- [x] **1.2** — Time: where the hours went, by day, project and hour
 - [x] **2.0** — project memory for Claude Code and Codex
 - [ ] Notifications in Telegram and by email
 - [ ] Cursor chat history
