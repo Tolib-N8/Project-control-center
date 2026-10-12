@@ -3,7 +3,7 @@ import Foundation
 import Observation
 
 enum Screen: Hashable {
-    case week, projects, sessions, git, signals
+    case week, projects, sessions, git, signals, time
     case project(String)
 
     /// Project pages sit one level below the sidebar sections.

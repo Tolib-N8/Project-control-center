@@ -203,6 +203,13 @@ struct MonthTimeCard: View {
                     Text(tr("Время по проектам · \(DateFormat.monthStandalone.string(from: app.now))", "Time per project · \(DateFormat.monthStandalone.string(from: app.now))")).uiFont(14, .semibold)
                     Spacer()
                     Text(tr("\(Duration.hours(actual)) ч фактически · \(Duration.hours(planned)) ч по плану", "\(Duration.hours(actual)) h actual · \(Duration.hours(planned)) h planned")).uiFont(12.5, color: Theme.text3)
+                    Button { app.screen = .time } label: {
+                        HStack(spacing: 5) {
+                            Text(tr("Подробнее", "Details")).uiFont(12.5, .medium, color: Theme.text2)
+                            Icon("arrow.right", size: 10).foregroundStyle(Theme.text2)
+                        }
+                    }
+                    .buttonStyle(PlainButtonStyle2())
                 }
                 GeometryReader { geo in
                     HStack(spacing: 4) {
@@ -237,12 +244,6 @@ struct MonthTimeCard: View {
     }
 
     private func plannedHours(_ pid: String, from: Date, to: Date) -> Double {
-        app.plans.values.reduce(0) { sum, plan in
-            guard let monday = Week.date(fromKey: plan.weekKey) else { return sum }
-            return sum + plan.blocks.filter { b in
-                let d = Week.day(b.day, of: monday)
-                return b.projectId == pid && d >= from && d < to
-            }.reduce(0) { $0 + $1.hours }
-        }
+        TimeEngine.plannedHours(pid, from: from, to: to, plans: app.plans)
     }
 }

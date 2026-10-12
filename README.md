@@ -93,6 +93,17 @@ Follows your macOS language, switches live in Settings. AI conclusions come in t
 
 </td>
 </tr>
+<tr>
+<td valign="top">
+
+### ⏱ Time
+Where the hours really went: the development timer plus agent work outside it, counted once. By week or month — totals against the previous period, a streak, plan versus actual, a day-by-day chart in project colours, a weekday × hour heatmap of when you work, and how much was you versus the agents.
+
+</td>
+<td valign="top">
+
+</td>
+</tr>
 </table>
 
 ## 🧠 AI analysis
@@ -181,7 +192,7 @@ A 0–100 score. Penalties: changes uncommitted for more than a day, a branch be
 
 | | |
 | --- | --- |
-| <kbd>⌘</kbd> <kbd>1</kbd> … <kbd>5</kbd> | Week · Projects · Sessions · Git · Signals |
+| <kbd>⌘</kbd> <kbd>1</kbd> … <kbd>6</kbd> | Week · Projects · Sessions · Git · Signals · Time |
 | <kbd>⌘</kbd> <kbd>R</kbd> | Refresh data |
 | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>P</kbd> | Plan the week |
 | <kbd>⌘</kbd> <kbd>,</kbd> | Settings (AI provider, language, updates) |
@@ -285,6 +296,7 @@ Each release ships two files: the styled **`.dmg`** for people (built by `script
 - [x] **0.9** — hand a task to Claude Code or Codex with one click, break a goal into tasks with AI, a motion for every icon
 - [x] **1.0** — GitHub: open pull requests and CI status via `gh`
 - [x] **1.1** — "Start development": per-project apps and links, a timer and a live menu bar widget
+- [x] **1.2** — Time: where the hours went, by day, project and hour
 - [ ] Notifications in Telegram and by email
 - [ ] Cursor chat history
 - [ ] Apple notarization

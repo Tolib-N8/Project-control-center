@@ -5,7 +5,7 @@ import SwiftUI
 enum IconEffect: Equatable {
     case bounceUp, bounceDown, bounceLayers
     case wiggleForward, wiggleLeft, wiggleRight, wiggleUp, wiggleDown, ring, wiggleLayers
-    case rotate, rotateBack, breathe, sparkle, pulse
+    case rotate, rotateBack, rotateLayers, breathe, sparkle, pulse
 }
 
 enum IconMotion {
@@ -17,6 +17,7 @@ enum IconMotion {
         case "arrow.triangle.branch", "arrow.triangle.pull", "pencil", "point.topleft.down.to.point.bottomright.curvepath", "hand.draw", "paperplane": .wiggleForward
         case "bell", "bell.slash", "xmark", "magnifyingglass", "doc.text.magnifyingglass": .ring
         case "gearshape", "plus", "arrow.clockwise", "arrow.triangle.2.circlepath": .rotate
+        case "clock": .rotateLayers                                    // the hands sweep round
         case "arrow.counterclockwise": .rotateBack
         case "sparkles": .sparkle
         case _ where symbol.hasPrefix("folder"): .bounceUp
@@ -88,6 +89,7 @@ extension View {
         case .wiggleLayers: symbolEffect(.wiggle.byLayer, options: .nonRepeating, value: trigger)
         case .rotate: symbolEffect(.rotate.clockwise, options: .nonRepeating, value: trigger)
         case .rotateBack: symbolEffect(.rotate.counterClockwise, options: .nonRepeating, value: trigger)
+        case .rotateLayers: symbolEffect(.rotate.byLayer, options: .nonRepeating, value: trigger)
         case .breathe: symbolEffect(.breathe, options: .nonRepeating, value: trigger)
         case .sparkle: symbolEffect(.variableColor.iterative, options: .nonRepeating, value: trigger)
         case .pulse: symbolEffect(.pulse, options: .nonRepeating, value: trigger)

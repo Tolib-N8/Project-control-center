@@ -140,6 +140,11 @@ enum Snapshotter {
             case "sessions": app.screen = .sessions
             case "git": app.screen = .git
             case "signals": app.screen = .signals
+            case "time", "time-month", "time-prev":
+                TimeView.debugStart = name == "time-month" ? (.month, 0) : name == "time-prev" ? (.week, -1) : nil
+                app.screen = .week
+                try? await Task.sleep(for: .seconds(0.4))
+                app.screen = .time
             case "planner":
                 app.screen = .week
                 app.sheet = .planner(weekKey: app.displayWeekKey)
