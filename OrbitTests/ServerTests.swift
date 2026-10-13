@@ -182,9 +182,52 @@ final class SSHTests: XCTestCase {
         XCTAssertEqual(args[args.firstIndex(of: "-p")! + 1], "2222")
         XCTAssertEqual(args[args.count - 3], "--", "the address can never be read as an option")
         XCTAssertEqual(args[args.count - 2], "deploy@203.0.113.10")
-        XCTAssertTrue(args.last!.contains(#"bash -lc 'echo '\''hi'\'''"#))
+        XCTAssertEqual(args.last, SSH.remoteCommand(script: "echo 'hi'"))
         server.port = 22
         XCTAssertFalse(SSH.arguments(server).contains("-p"))
+    }
+
+    /// sshd gives the command to whatever login shell the user has on the server. The same line is run here
+    /// through every shell on this Mac — fish included, which rejects `if … then … fi` — and must do the same thing.
+    func testRemoteCommandMeansTheSameInEveryLoginShell() throws {
+        let script = #"""
+        printf '%s\n' 'single '\''quote' "double \"q\" and $((6 * 7))" 'back\\slash' 'star * and ; | & < > ( ) { } [ ] ! # ~ ` $x'
+        if [ -n "$ORBIT_NOT_SET" ]; then echo set; else echo "not set"; fi
+        echo end
+        """#
+        let expected = #"""
+        single 'quote
+        double "q" and 42
+        back\\slash
+        star * and ; | & < > ( ) { } [ ] ! # ~ ` $x
+        not set
+        end
+
+        """#
+        let remote = SSH.remoteCommand(script: script)
+        XCTAssertFalse(remote.contains("\\"), "nothing in the line needs escaping, so no shell can read it differently")
+        XCTAssertEqual(remote.filter { $0 == "'" }.count, 2)
+
+        var shells = ["/bin/sh", "/bin/bash", "/bin/zsh", "/bin/tcsh", "/bin/dash", "/bin/ksh"]
+        if let fish = ["/opt/homebrew/bin/fish", "/usr/local/bin/fish", "/usr/bin/fish"].first(where: FileManager.default.isExecutableFile) { shells.append(fish) }
+        var tried: [String] = []
+        for shell in shells where FileManager.default.isExecutableFile(atPath: shell) {
+            let r = Shell.run(shell, ["-c", remote], timeout: 30)
+            XCTAssertTrue(r.stdout.hasSuffix(expected), "\(shell): \(r.stdout) \(r.stderr)")
+            XCTAssertEqual(r.status, 0, shell)
+            tried.append(shell)
+        }
+        XCTAssertGreaterThanOrEqual(tried.count, 3, "\(tried)")
+
+        // The exit status of the script is what comes back.
+        XCTAssertEqual(Shell.run("/bin/zsh", ["-c", SSH.remoteCommand(script: "echo out; exit 7")], timeout: 30).status, 7)
+    }
+
+    func testAnswerSummary() {
+        XCTAssertEqual(SSH.summary("fish: Missing end to balance this if statement\nif command -v bash\n^^\nmore\n"), "fish: Missing end to balance this if statement · if command -v bash · ^^")
+        XCTAssertEqual(SSH.summary("\n\n"), "")
+        XCTAssertEqual(SSH.problem(ShellResult(status: 255, stdout: "", stderr: "kex_exchange_identification: read: Connection reset by peer\nConnection reset by 1.2.3.4 port 22\n"))?.message,
+                       "kex_exchange_identification: read: Connection reset by peer · Connection reset by 1.2.3.4 port 22")
     }
 
     func testKnownHostsNameAndKeyCommands() {

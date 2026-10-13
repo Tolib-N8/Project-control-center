@@ -205,7 +205,7 @@ enum SSHProblem: String, Codable, Hashable {
         case .refused: tr("На этом адресе и порту SSH не слушает. Проверьте порт.", "Nothing listens for SSH at this address and port. Check the port.")
         case .timeout: tr("Сервер выключен, закрыт файрволом или адрес неверный.", "The server is off, firewalled, or the address is wrong.")
         case .noDirectory: tr("Проверьте путь к папке проекта на сервере.", "Check the path of the project folder on the server.")
-        case .other: tr("Подробности — в сообщении ниже.", "Details are in the message below.")
+        case .other: tr("Сервер ответил не так, как ожидалось. Его ответ — ниже.", "The server didn’t answer as expected. Its answer is below.")
         }
     }
 

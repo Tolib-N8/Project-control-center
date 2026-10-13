@@ -25,12 +25,27 @@ enum SSH {
         return args
     }
 
-    /// The full argument list for running `script` with bash on the server (sh where there is no bash).
-    /// The script travels as one quoted argument and stdin stays empty, so a command inside can't swallow the rest of it.
+    /// What sshd hands to the user's login shell on the server to run `script` with bash (sh where there is no bash).
+    ///
+    /// That login shell can be anything — bash, zsh, fish, tcsh — so the line it has to parse is kept to what
+    /// they all read the same way: one plain command, a single-quoted text without quotes or backslashes inside,
+    /// and the script itself as base64. `sh` then decodes it and takes over. Stdin stays empty, so a command
+    /// inside the script can't swallow the rest of it.
+    static func remoteCommand(script: String) -> String {
+        let wrapper = "s=$(printf %s \"$1\" | base64 -d) || { echo \"orbit: base64 is missing on the server\" >&2; exit 97; }; "
+            + "if command -v bash >/dev/null 2>&1; then exec bash -lc \"$s\"; else exec sh -c \"$s\"; fi"
+        return "sh -c '\(wrapper)' orbit \(Data(script.utf8).base64EncodedString())"
+    }
+
+    /// The full argument list for running `script` on the server.
     static func command(_ server: ServerConfig, script: String, connectTimeout: Int = 8) -> [String] {
-        let q = Shell.quote(script)
-        let remote = "if command -v bash >/dev/null 2>&1; then exec bash -lc \(q); else exec sh -c \(q); fi"
-        return arguments(server, connectTimeout: connectTimeout) + ["--", server.host.trimmingCharacters(in: .whitespaces), remote]
+        arguments(server, connectTimeout: connectTimeout) + ["--", server.host.trimmingCharacters(in: .whitespaces), remoteCommand(script: script)]
+    }
+
+    /// The first lines of an error text, on one line: enough to see what the server said.
+    static func summary(_ text: String, lines: Int = 3) -> String {
+        let parts = text.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        return String(parts.prefix(lines).joined(separator: " · ").prefix(300))
     }
 
     /// The folder for shared connections has to exist before ssh is started.
@@ -65,7 +80,7 @@ enum SSH {
         } else {
             kind = .other
         }
-        return (kind, line)
+        return (kind, kind == .other ? summary(text) : line)
     }
 
     /// How the server is written in ~/.ssh/known_hosts: "host", or "[host]:port" for a non-standard port.

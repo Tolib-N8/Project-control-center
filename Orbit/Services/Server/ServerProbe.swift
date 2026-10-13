@@ -71,8 +71,8 @@ enum ServerProbe {
         let r = SSH.run(server, script: script(server), timeout: timeout)
         if let p = SSH.problem(r) { return (nil, p.kind, p.kind == .hostKey ? SSH.forgetHostCommand(server) : p.message) }
         guard r.stdout.contains("@@end") else {
-            let text = (r.stderr.isEmpty ? r.stdout : r.stderr).trimmingCharacters(in: .whitespacesAndNewlines)
-            return (nil, .other, text.split(separator: "\n").last.map(String.init) ?? tr("сервер ответил непонятно", "unexpected answer from the server"))
+            let text = SSH.summary(r.stderr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? r.stdout : r.stderr)
+            return (nil, .other, text.isEmpty ? tr("сервер ответил непонятно", "unexpected answer from the server") : text)
         }
         let facts = parse(r.stdout, runtime: server.runtime)
         if facts.directoryMissing { return (facts, .noDirectory, server.directory) }
