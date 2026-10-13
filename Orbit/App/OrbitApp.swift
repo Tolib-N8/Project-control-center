@@ -43,6 +43,7 @@ struct OrbitApp: App {
                 Button("Git") { app.screen = .git }.keyboardShortcut("4")
                 Button(tr("Сигналы", "Signals")) { app.screen = .signals }.keyboardShortcut("5")
                 Button(tr("Время", "Time")) { app.screen = .time }.keyboardShortcut("6")
+                Button(tr("Серверы", "Servers")) { app.screen = .servers }.keyboardShortcut("7")
             }
         }
 
@@ -121,7 +122,7 @@ struct MainView: View {
         .background(Theme.bg)
         .ignoresSafeArea()
         .sheet(item: $app.sheet) { sheet in
-            SheetHost(sheet: sheet).environment(app)
+            SheetHost(sheet: sheet).id(sheet.id).environment(app)
         }
     }
 
@@ -148,6 +149,7 @@ struct MainView: View {
         case .git: GitView()
         case .signals: SignalsView()
         case .time: TimeView()
+        case .servers: ServersView()
         }
     }
 }
@@ -166,6 +168,9 @@ struct SheetHost: View {
         case .update: UpdateSheet()
         case .taskGoal(let pid): TaskGoalSheet(projectId: pid)
         case .launchSet(let pid): LaunchSetSheet(projectId: pid)
+        case .serverSetup(let pid, let sid): ServerSetupSheet(projectId: pid, serverId: sid)
+        case .deploy(let sid): DeploySheet(serverId: sid)
+        case .serverLog(let sid): ServerLogSheet(serverId: sid)
         }
     }
 }

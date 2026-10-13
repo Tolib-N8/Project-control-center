@@ -23,6 +23,7 @@ struct SidebarView: View {
                 navItem(.git, "Git", "arrow.triangle.branch")
                 navItem(.signals, tr("Сигналы", "Signals"), "bell", badge: app.activeSignals.count)
                 navItem(.time, tr("Время", "Time"), "clock")
+                navItem(.servers, tr("Серверы", "Servers"), "server.rack", badge: app.serversDown.count)
             }
 
             VStack(spacing: 2) {

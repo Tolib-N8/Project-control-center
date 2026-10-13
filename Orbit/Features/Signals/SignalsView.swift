@@ -179,6 +179,19 @@ struct SignalCard: View {
                 app.sessionFilterProject = pid
                 app.screen = .sessions
             }
+        case .serverDown, .serverService, .serverDisk:
+            OrbitButton(tr("Открыть серверы", "Open servers"), icon: "server.rack", kind: .primary) { app.screen = .servers }
+            if let sid = s.serverId, let ref = app.serverRef(sid) {
+                if ref.server.runtime != .none, app.serverStatus[sid]?.sshProblem == nil {
+                    OrbitButton(tr("Журнал", "Log"), icon: "scroll") { app.sheet = .serverLog(serverId: sid) }
+                }
+                OrbitButton(tr("SSH в терминале", "SSH in Terminal"), icon: "terminal") { app.openServerTerminal(ref.server) }
+            }
+        case .deployFailed:
+            if let sid = s.serverId {
+                OrbitButton(tr("Открыть выкладку", "Open the deploy"), icon: "arrow.up", kind: .primary) { app.sheet = .deploy(serverId: sid) }
+            }
+            OrbitButton(tr("Серверы", "Servers"), icon: "server.rack") { app.screen = .servers }
         }
     }
 }

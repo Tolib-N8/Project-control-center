@@ -47,6 +47,7 @@ enum Snapshotter {
         // Wait for the first refresh.
         for _ in 0..<120 where app.lastSync == nil { try? await Task.sleep(for: .milliseconds(500)) }
         for name in names {
+            if await liveServerStep(name, app: app, dir: dir) { continue }
             switch name {
             case "first-launch": continue
             case "wait": try? await Task.sleep(for: .seconds(30)); continue
@@ -163,11 +164,45 @@ enum Snapshotter {
             case "planner":
                 app.screen = .week
                 app.sheet = .planner(weekKey: app.displayWeekKey)
+            case "servers-empty": app.screen = .servers
+            case "servers", "server-setup", "server-new", "deploy", "deploy-running", "deploy-failed", "server-log", "server-signals", "server-project":
+                // Made-up servers: nothing is contacted.
+                ServerFixtures.install(app)
+                guard let main = ServerFixtures.main, let ref = app.serverRef(main) else { continue }
+                DeploySheet.debugPreview = nil
+                DeploySheet.debugRun = nil
+                switch name {
+                case "server-setup": app.sheet = .serverSetup(projectId: ref.projectId, serverId: main)
+                case "server-new": app.sheet = .serverSetup(projectId: app.config.activeProjects.last?.id ?? ref.projectId, serverId: nil)
+                case "deploy":
+                    DeploySheet.debugPreview = ServerFixtures.preview()
+                    app.sheet = .deploy(serverId: main)
+                case "deploy-running":
+                    ServerFixtures.showRunning(app)
+                    DeploySheet.debugRun = ServerFixtures.runningRun
+                    app.sheet = .deploy(serverId: main)
+                case "deploy-failed":
+                    DeploySheet.debugRun = ServerFixtures.failedRun
+                    if let id = ServerFixtures.failing { app.sheet = .deploy(serverId: id) }
+                case "server-log":
+                    ServerLogSheet.debugLog = ServerFixtures.log
+                    app.sheet = .serverLog(serverId: main)
+                case "server-signals": app.screen = .signals
+                case "server-project": app.screen = .project(ref.projectId)
+                default:
+                    app.screen = .week
+                    try? await Task.sleep(for: .seconds(0.4))
+                    app.screen = .servers
+                }
             default: continue
             }
             try? await Task.sleep(for: .seconds(1.5))
             capture(to: "\(dir)/\(name).png")
-            app.sheet = nil
+            if app.sheet != nil {
+                // Let the sheet go away, so the next one starts from scratch.
+                app.sheet = nil
+                try? await Task.sleep(for: .seconds(0.7))
+            }
         }
         NSApp.terminate(nil)
     }

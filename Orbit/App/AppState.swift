@@ -1,9 +1,10 @@
 import AppKit
 import Foundation
+import Network
 import Observation
 
 enum Screen: Hashable {
-    case week, projects, sessions, git, signals, time
+    case week, projects, sessions, git, signals, time, servers
     case project(String)
 
     /// Project pages sit one level below the sidebar sections.
@@ -33,6 +34,9 @@ enum ActiveSheet: Identifiable {
     case update
     case taskGoal(projectId: String)
     case launchSet(projectId: String)
+    case serverSetup(projectId: String, serverId: UUID?)
+    case deploy(serverId: UUID)
+    case serverLog(serverId: UUID)
 
     var id: String {
         switch self {
@@ -45,6 +49,9 @@ enum ActiveSheet: Identifiable {
         case .update: "update"
         case .taskGoal(let p): "task-goal-\(p)"
         case .launchSet(let p): "launch-\(p)"
+        case .serverSetup(let p, let s): "server-setup-\(p)-\(s?.uuidString ?? "new")"
+        case .deploy(let s): "deploy-\(s.uuidString)"
+        case .serverLog(let s): "server-log-\(s.uuidString)"
         }
     }
 }
@@ -70,6 +77,16 @@ final class AppState {
     /// Project memory for agents, per project (~/.orbit/memory-state.json).
     var memoryRecords: [String: MemoryRecord] = [:]
     var memoryBusy: Set<String> = []
+    /// Production servers: the last check, a week of availability samples and the deploy history.
+    var serverStatus: [UUID: ServerStatus] = [:]
+    var serverSamples: [UUID: [ServerSample]] = [:]
+    var deployRuns: [DeployRun] = []
+    var serverChecking: Set<UUID> = []
+    /// Deploys in progress, by server.
+    @ObservationIgnored var deployJobs: [UUID: LiveDeploy] = [:]
+    /// False while the Mac itself has no network: servers aren't blamed for that.
+    var macOnline = true
+    @ObservationIgnored var pathMonitor: NWPathMonitor?
     /// "Стоп" is waiting for apps to confirm closing before it removes the project's desktop.
     var desktopCleanup: DesktopCleanup?
     private var lastGitHubSync: Date?
@@ -135,6 +152,7 @@ final class AppState {
         tasks = Store.load([ProjectTask].self, from: "tasks.json") ?? []
         github = Store.load([String: GitHubRepo].self, from: "github.json") ?? [:]
         memoryRecords = Store.load([String: MemoryRecord].self, from: "memory-state.json") ?? [:]
+        loadServers()
         worklog = Store.load(WorkLog.self, from: "worklog.json") ?? WorkLog()
         worklog.recover(now: Date())
         worklog.prune(before: Date().addingTimeInterval(-120 * 86400))
@@ -153,6 +171,7 @@ final class AppState {
         }
         scheduleUpdateChecks()
         observeSleep()
+        startServerMonitoring()
         ticker?.invalidate()
         ticker = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -160,6 +179,7 @@ final class AppState {
                 self?.heartbeat()
                 self?.runSchedules()
                 self?.refreshForAgentTasks()
+                self?.serverTick()
             }
         }
     }
@@ -365,7 +385,8 @@ final class AppState {
         guard config.rhythm.signalsEnabled else { return }
         let active = activeSnapshots
         let before = Set(signals.filter { $0.state == .active }.map(\.id))
-        signals = SignalEngine.evaluate(config: config, projects: active, plans: [currentPlan, plan(nextWeekKey)], existing: signals, work: worklog.intervals)
+        signals = SignalEngine.evaluate(config: config, projects: active, plans: [currentPlan, plan(nextWeekKey)], existing: signals,
+                                        work: worklog.intervals, servers: serverSnapshots)
         if config.notifyMacOS {
             for i in signals.indices where signals[i].state == .active && !signals[i].notified && !before.contains(signals[i].id) {
                 let s = signals[i]

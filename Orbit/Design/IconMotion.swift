@@ -33,6 +33,7 @@ enum IconMotion {
         case "eye", "bolt", "viewfinder", "pause": .pulse
         case "stop": .bounceDown
         case "desktopcomputer", "function": .breathe
+        case "server.rack": .bounceLayers                              // the units light up one by one
         default: .bounceUp
         }
     }

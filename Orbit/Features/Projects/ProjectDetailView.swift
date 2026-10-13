@@ -20,6 +20,7 @@ struct ProjectDetailView: View {
                     VStack(spacing: 28) {
                         TasksPanel(projectId: projectId)
                         GitPanel(snap: snap)
+                        ServerPanel(projectId: projectId)
                         MemoryPanel(projectId: projectId)
                     }
                     .frame(width: 380)

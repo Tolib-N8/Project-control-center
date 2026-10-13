@@ -14,6 +14,8 @@ struct ProjectConfig: Codable, Identifiable, Hashable {
     var launch: [LaunchItem]?
     /// Keep .orbit/memory.md and the agent blocks up to date; nil means on.
     var memory: Bool?
+    /// Production servers Orbit watches and deploys to; nil means none.
+    var servers: [ServerConfig]?
 
     var displayPath: String { path.abbreviatingHome }
 }

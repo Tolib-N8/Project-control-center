@@ -102,6 +102,9 @@ Where the hours really went: the development timer plus agent work outside it, c
 </td>
 <td valign="top">
 
+### 🖥 Servers
+Is production alive, and what runs there: the site's answer and response time, the deployed commit and how far it is behind the branch, containers or the service, CPU, memory and disk. One button deploys a new version step by step — and rolls it back.
+
 </td>
 </tr>
 </table>
@@ -117,6 +120,26 @@ New Claude Code and Codex sessions shouldn't start with an empty head. Orbit kee
 | a block in `AGENTS.md` | Codex (it has no imports) |
 
 Orbit only writes between `<!-- orbit:memory -->` markers, hides its files via `.git/info/exclude`, and doesn't count its own `AGENTS.md` block as uncommitted work. The memory is rewritten after every finished agent session and before **Start development**; your chosen model writes it (heuristics without one), building on the previous version. Tokens, passwords, secret environment variables and your home path are scrubbed. Turn it off per project on the project page.
+
+## 🚀 Servers and deploys
+
+Add a project's production server — an address you would pass to `ssh`, the project folder, the site address and the production branch — and Orbit does two things with it over plain SSH from your Mac. Nothing is installed on the server and no CI is involved.
+
+**It watches.** The site every 2 minutes, the server itself every 5 (one SSH visit reads the deployed commit, `docker compose ps` or the systemd unit, load, memory and disk). You get a signal and a macOS notification when the site stops answering twice in a row, a container is down or unhealthy, the disk passes 90 % or a deploy fails. *Log* shows the last 300 lines without opening a terminal.
+
+**It deploys.** *Deploy* shows the commits that would go out and the steps, then runs them one by one with live output. An error stops the chain.
+
+| Step | What happens |
+| --- | --- |
+| Connect | SSH works, the folder is there; the current version is remembered for rollback |
+| Your checks on the Mac | e.g. `npm ci && npm test`, in a **clean copy** of the commit being deployed — not in your working folder |
+| Code | `git fetch` and a fast-forward to exactly that commit; never a reset |
+| Your commands on the server | `docker compose build`, `docker compose up -d`, a backup, `deploy/update.sh` … |
+| Check | waits up to 90 seconds for the site to answer and everything to be running |
+
+Steps are yours to edit; Orbit suggests a set from the project's files and warns about commands that destroy data (`down -v`, `prune`, `rm -rf /`). *Roll back* returns the code to the previous commit and runs the server steps again (database changes are not rolled back). With **Deploy automatically** on, a new commit on the production branch goes out by itself — once per commit, never retried after a failure.
+
+Good to know: Orbit never asks for or stores a password. If a server wants one, *Install a key* creates Orbit's own key (`~/.orbit/ssh`, no passphrase — deploys run unattended) and opens Terminal with `ssh-copy-id`, where you type the password yourself. Watching and automatic deploys work while the Mac is on and Orbit is running. Servers are Linux; a step that needs `sudo` with a password fails with a hint.
 
 ## 🧠 AI analysis
 
@@ -188,6 +211,7 @@ Everything is read **locally**; app state lives in `~/.orbit`.
 | Tasks | your own list, stored in `~/.orbit/tasks.json` |
 | Time worked | agent activity plus the development timer (`~/.orbit/worklog.json`), overlaps counted once |
 | Pull requests and CI | `gh pr list` and `gh run list` with your GitHub CLI account (optional) |
+| Production servers | the system `ssh` and `curl`; state in `~/.orbit/servers.json`, deploy history and step output in `~/.orbit/deploys` |
 | Summaries, next steps, session breakdowns | the model you chose — `Orbit/Services/AI` — or heuristics |
 
 Logs are parsed once and cached by file size and modification time, so a refresh takes about a second.
@@ -204,7 +228,7 @@ A 0–100 score. Penalties: changes uncommitted for more than a day, a branch be
 
 | | |
 | --- | --- |
-| <kbd>⌘</kbd> <kbd>1</kbd> … <kbd>6</kbd> | Week · Projects · Sessions · Git · Signals · Time |
+| <kbd>⌘</kbd> <kbd>1</kbd> … <kbd>7</kbd> | Week · Projects · Sessions · Git · Signals · Time · Servers |
 | <kbd>⌘</kbd> <kbd>R</kbd> | Refresh data |
 | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>P</kbd> | Plan the week |
 | <kbd>⌘</kbd> <kbd>,</kbd> | Settings (AI provider, language, updates) |
@@ -309,7 +333,7 @@ Each release ships two files: the styled **`.dmg`** for people (built by `script
 - [x] **1.0** — GitHub: open pull requests and CI status via `gh`
 - [x] **1.1** — "Start development": per-project apps and links, a timer and a live menu bar widget
 - [x] **1.2** — Time: where the hours went, by day, project and hour
-- [x] **2.0** — project memory for Claude Code and Codex
+- [x] **2.0** — project memory for Claude Code and Codex; production servers: watching and step-by-step deploys over SSH
 - [ ] Notifications in Telegram and by email
 - [ ] Cursor chat history
 - [ ] Apple notarization

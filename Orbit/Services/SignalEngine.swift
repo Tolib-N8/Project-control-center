@@ -3,11 +3,13 @@ import Foundation
 /// Evaluates monitoring rules and keeps signal state (active / snoozed / resolved) across runs.
 enum SignalEngine {
     /// `plans`: the current week's plan first, then the next week's.
-    static func evaluate(config: OrbitConfig, projects: [ProjectSnapshot], plans: [WeekPlan], existing: [Signal], work: [WorkInterval] = [], now: Date = Date()) -> [Signal] {
+    /// `servers`: what is known about each project's servers, by project id.
+    static func evaluate(config: OrbitConfig, projects: [ProjectSnapshot], plans: [WeekPlan], existing: [Signal], work: [WorkInterval] = [],
+                         servers: [String: [ServerSnapshot]] = [:], now: Date = Date()) -> [Signal] {
         var candidates: [Signal] = []
         for p in projects where !p.config.archived {
             for rule in config.rules where rule.enabled {
-                candidates += detect(rule, p, plans: plans, work: work, now: now)
+                candidates += detect(rule, p, plans: plans, work: work, servers: servers[p.config.id] ?? [], now: now)
             }
         }
 
@@ -56,7 +58,8 @@ enum SignalEngine {
             }
     }
 
-    static func detect(_ rule: SignalRuleConfig, _ p: ProjectSnapshot, plans: [WeekPlan], work: [WorkInterval] = [], now: Date) -> [Signal] {
+    static func detect(_ rule: SignalRuleConfig, _ p: ProjectSnapshot, plans: [WeekPlan], work: [WorkInterval] = [],
+                       servers: [ServerSnapshot] = [], now: Date) -> [Signal] {
         let plan = plans.first
         let pid = p.config.id
         let t = rule.threshold
@@ -160,6 +163,80 @@ enum SignalEngine {
                          [.init(label: tr("Токены", "Tokens"), value: NumberText.compact(s.tokens)),
                           .init(label: tr("Длительность", "Duration"), value: Duration.text(minutes: s.durationMinutes))],
                          suffix: ":\(s.id)")]
+
+        case .serverDown:
+            return servers.compactMap { s -> Signal? in
+                guard s.config.monitor, let st = s.status else { return nil }
+                let name = s.config.name
+                let hasSite = s.config.siteURL != nil
+                let checked = st.siteCheckedAt.map { DateFormat.ago($0, now: now) } ?? "—"
+                if hasSite, let site = st.site, !site.up, st.siteFailures >= Int(t) {
+                    let answer = site.code.map(String.init) ?? site.error ?? "—"
+                    return make(.critical, tr("Сервер «\(name)» не отвечает", "Server “\(name)” is not responding"),
+                                tr("Сайт \(s.config.siteURL ?? "") не открывается уже \(Plural.times(st.siteFailures)) подряд. Посмотрите журнал сервера и состояние контейнеров.",
+                                   "The site \(s.config.siteURL ?? "") has failed \(Plural.times(st.siteFailures)) in a row. Check the server log and the containers."),
+                                [.init(label: tr("Ответ", "Answer"), value: answer),
+                                 .init(label: tr("Проверок подряд", "Checks in a row"), value: "\(st.siteFailures)"),
+                                 .init(label: tr("Проверено", "Checked"), value: checked)],
+                                suffix: ":\(s.config.id.uuidString)")
+                }
+                guard let problem = st.sshProblem, problem != .noDirectory, st.sshFailures >= Int(t) else { return nil }
+                let siteUp = hasSite && st.site?.up == true
+                return make(problem.unreachable && !siteUp ? .critical : .warning,
+                            problem.unreachable && !siteUp ? tr("Сервер «\(name)» недоступен", "Server “\(name)” is unreachable")
+                                                           : tr("Нет доступа по SSH к «\(name)»", "No SSH access to “\(name)”"),
+                            problem.hint + (siteUp ? tr(" Сайт при этом работает.", " The site itself is up.") : ""),
+                            [.init(label: tr("Причина", "Reason"), value: problem.title),
+                             .init(label: tr("Проверок подряд", "Checks in a row"), value: "\(st.sshFailures)")],
+                            suffix: ":\(s.config.id.uuidString)")
+            }
+
+        case .serverService:
+            return servers.compactMap { s -> Signal? in
+                guard s.config.monitor, let st = s.status, st.sshProblem == nil, let host = st.host, !host.failingServices.isEmpty else { return nil }
+                let failing = host.failingServices
+                let names = failing.map(\.name).joined(separator: ", ")
+                let looping = failing.contains(where: \.restarting)
+                let unhealthy = failing.allSatisfy { $0.health == "unhealthy" }
+                return make(.critical,
+                            unhealthy ? tr("На «\(s.config.name)» не проходит проверку здоровья: \(names)", "Failing its health check on “\(s.config.name)”: \(names)")
+                                      : tr("На «\(s.config.name)» не запущено: \(names)", "Not running on “\(s.config.name)”: \(names)"),
+                            unhealthy ? tr("Контейнер запущен, но его проверка здоровья (healthcheck) не проходит. Причина видна в журнале.", "The container runs, but its health check fails. The log shows the reason.")
+                            : looping ? tr("Перезапускается по кругу — обычно это ошибка при старте. Причина видна в журнале.", "Restarting in a loop — usually a startup error. The log shows the reason.")
+                                    : tr("Контейнер или служба остановились. Причина видна в журнале.", "A container or the service stopped. The log shows the reason."),
+                            [.init(label: tr("Не запущено", "Down"), value: "\(failing.count)"),
+                             .init(label: tr("Всего", "Total"), value: "\(host.services.count)"),
+                             .init(label: tr("Состояние", "State"), value: failing[0].health == "unhealthy" ? "unhealthy" : failing[0].state)],
+                            suffix: ":\(s.config.id.uuidString)")
+            }
+
+        case .serverDisk:
+            return servers.compactMap { s -> Signal? in
+                guard s.config.monitor, let host = s.status?.host, let used = host.diskFraction, used * 100 >= t,
+                      let total = host.diskTotalKB, let usedKB = host.diskUsedKB else { return nil }
+                let free = Double(total - usedKB) / 1_048_576
+                return make(used >= 0.97 ? .critical : .warning,
+                            tr("Диск «\(s.config.name)» заполнен на \(Int(used * 100)) %", "Disk on “\(s.config.name)” is \(Int(used * 100))% full"),
+                            tr("Когда место кончится, остановятся база данных и сборка. Чаще всего место занимают старые образы Docker и журналы.",
+                               "When it runs out, the database and builds stop. Old Docker images and logs are the usual culprits."),
+                            [.init(label: tr("Свободно", "Free"), value: String(format: "%.1f GB", free)),
+                             .init(label: tr("Всего", "Total"), value: String(format: "%.0f GB", Double(total) / 1_048_576))],
+                            suffix: ":\(s.config.id.uuidString)")
+            }
+
+        case .deployFailed:
+            return servers.compactMap { s -> Signal? in
+                guard let run = s.lastRun, run.state == .failed else { return nil }
+                let step = run.failedStep
+                var detail = step.map { tr("Остановилась на шаге «\($0.name)»", "Stopped at the “\($0.name)” step") } ?? tr("Выкладка остановилась", "The deploy stopped")
+                if let note = step?.note.map({ $0.trimmingCharacters(in: CharacterSet(charactersIn: " .:;,")) }), !note.isEmpty { detail += ": \(note)" }
+                detail += tr(". Откройте выкладку, чтобы увидеть вывод шага.", ". Open the deploy to see the step’s output.")
+                var metrics: [SignalMetric] = [.init(label: tr("Запуск", "Trigger"), value: run.trigger.title),
+                                               .init(label: tr("Когда", "When"), value: DateFormat.relativeDay(run.startedAt))]
+                if let c = run.shortTo { metrics.insert(.init(label: tr("Коммит", "Commit"), value: c), at: 0) }
+                return make(.warning, tr("Выкладка на «\(s.config.name)» не удалась", "Deploy to “\(s.config.name)” failed"), detail, metrics,
+                            suffix: ":\(s.config.id.uuidString)")
+            }
         }
     }
 
@@ -172,6 +249,10 @@ enum SignalEngine {
         case .idle: tr("работа возобновилась", "work resumed")
         case .skippedDay: tr("план обновлён", "plan updated")
         case .tokens: tr("расход в норме", "usage back to normal")
+        case .serverDown: tr("сервер снова отвечает", "the server answers again")
+        case .serverService: tr("всё запущено", "everything is running")
+        case .serverDisk: tr("место освободилось", "space was freed")
+        case .deployFailed: tr("следующая выкладка прошла", "the next deploy succeeded")
         }
     }
 

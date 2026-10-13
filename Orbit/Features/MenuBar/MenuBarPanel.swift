@@ -207,6 +207,15 @@ struct MenuBarPanel: View {
                 openWindow(id: "main")
                 NSApp.activate(ignoringOtherApps: true)
             }
+            let down = app.serversDown
+            if !down.isEmpty {
+                footerRow(tr("Не отвечает: \(down.map(\.server.name).joined(separator: ", "))", "Down: \(down.map(\.server.name).joined(separator: ", "))"),
+                          icon: "server.rack", tint: Theme.red) {
+                    app.screen = .servers
+                    openWindow(id: "main")
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+            }
             footerRow(tr("Выйти из Orbit", "Quit Orbit"), icon: "power") { NSApp.terminate(nil) }
         }
     }
