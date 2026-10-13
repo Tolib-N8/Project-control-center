@@ -222,6 +222,17 @@ struct DeploySheet: View {
                 }
                 .buttonStyle(PlainButtonStyle2())
             }
+            if !server.hasBackup {
+                HStack(spacing: 10) {
+                    Image(systemName: "externaldrive.badge.exclamationmark").font(.system(size: 13)).foregroundStyle(Theme.yellow)
+                    Text(tr("Перед этой выкладкой резервная копия не делается.", "No backup is made before this deploy.")).uiFont(13)
+                    Spacer(minLength: 8)
+                    OrbitButton(tr("Добавить шаг", "Add the step"), icon: "plus", compact: true) { withMotion { app.addBackupStep(serverId) } }
+                }
+                .padding(.vertical, 10).padding(.horizontal, 14)
+                .background(Theme.yellow.opacity(0.07), in: RoundedRectangle(cornerRadius: 10))
+                .transition(Motion.transition(.opacity))
+            }
             VStack(spacing: 0) {
                 ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
                     HStack(alignment: .top, spacing: 12) {
@@ -244,8 +255,13 @@ struct DeploySheet: View {
         case .verify: return tr("сайт отвечает, всё запущено", "the site answers, everything runs")
         case .local(let command): return command.replacingOccurrences(of: "\n", with: " ; ")
         case .remote:
-            let source = app.serverRef(serverId)?.server.steps.first { ($0.name.isEmpty ? $0.command : $0.name) == step.run.name && $0.kind == .command }
-            return source?.command.replacingOccurrences(of: "\n", with: " ; ") ?? tr("git fetch, перемотка до выкатываемого коммита", "git fetch, fast-forward to the commit being deployed")
+            let steps = app.serverRef(serverId)?.server.steps.filter(\.enabled) ?? []
+            let source = steps.first { $0.kind != .code && ($0.name.isEmpty ? $0.command : $0.name) == step.run.name }
+            let command = source?.command.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\n", with: " ; ") ?? ""
+            if source?.kind == .backup {
+                return command.isEmpty ? tr("настройки и версия → ~/orbit-backups на сервере", "settings and the version → ~/orbit-backups on the server") : command
+            }
+            return source == nil ? tr("git fetch, перемотка до выкатываемого коммита", "git fetch, fast-forward to the commit being deployed") : command
         }
     }
 

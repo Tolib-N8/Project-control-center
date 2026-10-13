@@ -23,9 +23,10 @@ enum StepPlace: String, Codable, Hashable {
     var title: String { self == .mac ? "Mac" : tr("Сервер", "Server") }
 }
 
-/// One editable step of a deploy: the built-in code update, or a command of the user's own.
+/// One editable step of a deploy: the built-in backup or code update, or a command of the user's own.
 struct DeployStep: Codable, Hashable, Identifiable {
-    enum Kind: String, Codable { case code, command }
+    /// `backup` saves the server's settings and version, plus whatever its `command` dumps, before anything changes.
+    enum Kind: String, Codable { case code, command, backup }
 
     var id = UUID()
     var kind: Kind = .command
@@ -47,7 +48,8 @@ struct DeployStep: Codable, Hashable, Identifiable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
-        kind = try c.decodeIfPresent(Kind.self, forKey: .kind) ?? .command
+        // A kind this version doesn't know is run as a plain command rather than breaking the whole config.
+        kind = (try? c.decodeIfPresent(Kind.self, forKey: .kind)) ?? .command
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
         command = try c.decodeIfPresent(String.self, forKey: .command) ?? ""
         place = try c.decodeIfPresent(StepPlace.self, forKey: .place) ?? .server
@@ -56,6 +58,11 @@ struct DeployStep: Codable, Hashable, Identifiable {
 
     static func code() -> DeployStep {
         DeployStep(kind: .code, name: tr("Код", "Code"))
+    }
+
+    /// `command` is the database dump, if the project has one; settings and the version are saved either way.
+    static func backup(command: String = "") -> DeployStep {
+        DeployStep(kind: .backup, name: tr("Резервная копия", "Backup"), command: command)
     }
 }
 
@@ -114,6 +121,18 @@ struct ServerConfig: Codable, Hashable, Identifiable {
 
     /// The address with a scheme, or nil when there is nothing to check.
     var siteURL: String? { ServerConfig.normalizedURL(url) }
+
+    var hasBackup: Bool { steps.contains { $0.enabled && $0.kind == .backup } }
+
+    /// Switches the backup step on, adding `suggested` before the first step that changes the server when there is none.
+    mutating func addBackup(_ suggested: DeployStep = .backup()) {
+        if let i = steps.firstIndex(where: { $0.kind == .backup }) {
+            steps[i].enabled = true
+        } else {
+            let index = steps.firstIndex { $0.kind == .code || ($0.kind == .command && $0.place == .server) } ?? steps.count
+            steps.insert(suggested, at: index)
+        }
+    }
 
     /// "smena.example.ru" → "https://smena.example.ru"; anything but http(s) is refused.
     static func normalizedURL(_ text: String?) -> String? {
@@ -403,7 +422,11 @@ enum DeployTemplate {
             steps.append(DeployStep(name: tr("Тесты", "Tests"), command: (has("package-lock.json") ? "npm ci" : "npm install") + " && npm test", place: .mac))
         }
 
-        let compose = ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"].contains(where: has)
+        let composeFile = ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"].first(where: has)
+        let compose = composeFile != nil
+        let composeText = composeFile.flatMap { read((projectPath as NSString).appendingPathComponent($0)) }.map { String(decoding: $0, as: UTF8.self) } ?? ""
+        // The backup goes right before the first thing that changes the server.
+        steps.append(.backup(command: BackupTemplate.command(compose: composeText)))
         if has("deploy/update.sh") && !compose {
             // The script pulls the code itself, so the built-in code step stays off.
             var code = DeployStep.code()
@@ -420,6 +443,58 @@ enum DeployTemplate {
         }
         steps.append(DeployStep(name: tr("Сборка и запуск", "Build and start"), command: "", enabled: false))
         return (.none, steps)
+    }
+}
+
+/// The database dump Orbit suggests for the backup step, from the project's compose file.
+enum BackupTemplate {
+    /// How many backups stay on the server; older ones are removed after a successful backup.
+    static let keep = 7
+
+    /// Services of a compose file with the image each one runs (a light read, not a YAML parser).
+    static func services(compose: String) -> [(name: String, image: String)] {
+        var result: [(String, String)] = []
+        var inServices = false, indent = 0, current: String?
+        for raw in compose.split(separator: "\n", omittingEmptySubsequences: true) {
+            let line = String(raw)
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else { continue }
+            let depth = line.prefix { $0 == " " }.count
+            if depth == 0 {
+                inServices = trimmed.hasPrefix("services:")
+                current = nil
+                continue
+            }
+            guard inServices else { continue }
+            if current == nil || depth <= indent, trimmed.hasSuffix(":"), !trimmed.contains(" ") {
+                indent = depth
+                current = String(trimmed.dropLast())
+            } else if let name = current, depth > indent, trimmed.hasPrefix("image:") {
+                let image = trimmed.dropFirst("image:".count).trimmingCharacters(in: CharacterSet(charactersIn: " \"'"))
+                result.append((name, image))
+            }
+        }
+        return result
+    }
+
+    /// One dump per database container, gzipped into `$ORBIT_BACKUP_DIR`; empty when there is no database to dump.
+    static func command(compose: String) -> String {
+        services(compose: compose).compactMap { service -> String? in
+            let image = service.image.lowercased().split(separator: "/").last.map(String.init) ?? ""
+            let name = service.name
+            guard name.range(of: "^[A-Za-z0-9._-]+$", options: .regularExpression) != nil else { return nil }
+            let out = "\"$ORBIT_BACKUP_DIR/\(name).sql.gz\""
+            if image.hasPrefix("postgres") || image.hasPrefix("postgis") || image.hasPrefix("timescaledb") || image.hasPrefix("pgvector") {
+                return "docker compose exec -T \(name) sh -c 'pg_dumpall -U \"${POSTGRES_USER:-postgres}\"' | gzip > \(out)"
+            }
+            if image.hasPrefix("mariadb") {
+                return "docker compose exec -T \(name) sh -c 'mariadb-dump --all-databases -uroot -p\"${MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD}\"' | gzip > \(out)"
+            }
+            if image.hasPrefix("mysql") {
+                return "docker compose exec -T \(name) sh -c 'mysqldump --all-databases -uroot -p\"$MYSQL_ROOT_PASSWORD\"' | gzip > \(out)"
+            }
+            return nil
+        }.joined(separator: "\n")
     }
 }
 

@@ -170,6 +170,7 @@ final class AppState {
             Task { @MainActor in await self?.refresh() }
         }
         scheduleUpdateChecks()
+        Task.detached(priority: .utility) { Updater.removeLeftovers() }
         observeSleep()
         startServerMonitoring()
         ticker?.invalidate()

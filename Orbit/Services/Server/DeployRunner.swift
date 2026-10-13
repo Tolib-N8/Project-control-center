@@ -33,6 +33,8 @@ enum DeployPipeline {
             case .code:
                 steps.append(PlannedStep(run: StepRun(name: step.name.isEmpty ? tr("Код", "Code") : step.name, place: .server),
                                          action: .remote(remoteScript(server, body: codeScript(server, target: target), env: env))))
+            case .backup:
+                steps.append(backupStep(server, step, env: env))
             case .command:
                 let command = step.command.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !command.isEmpty else { continue }
@@ -44,10 +46,58 @@ enum DeployPipeline {
         return steps
     }
 
+    private static func backupStep(_ server: ServerConfig, _ step: DeployStep, env: [String: String]) -> PlannedStep {
+        PlannedStep(run: StepRun(name: step.name.isEmpty ? tr("Резервная копия", "Backup") : step.name, place: .server),
+                    action: .remote(remoteScript(server, body: backupScript(command: step.command), env: env)))
+    }
+
+    /// Saves what a deploy can't bring back: the settings files and the version always, and whatever `command`
+    /// dumps (a database, usually) into `$ORBIT_BACKUP_DIR`. An empty dump fails the step, so the deploy stops
+    /// before anything on the server has changed. Old backups beyond `keep` are removed afterwards.
+    static func backupScript(command: String, keep: Int = BackupTemplate.keep) -> String {
+        let dump = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        let failed = Shell.quote(tr("Резервная копия не удалась. Выкладка остановлена, на сервере ничего не изменено.",
+                                    "The backup failed. The deploy stopped; nothing on the server was changed."))
+        var lines = [
+            // A dump piped into gzip must fail the step when the dump itself fails.
+            "if (set -o pipefail) 2>/dev/null; then set -o pipefail; fi",
+            "umask 077",
+            "ORBIT_BACKUP_ROOT=\"${ORBIT_BACKUP_HOME:-$HOME/orbit-backups}/$(basename \"$PWD\")\"",
+            "ORBIT_BACKUP_DIR=\"$ORBIT_BACKUP_ROOT/$(date +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD 2>/dev/null || echo nogit)\"",
+            "orbit_n=1; orbit_base=\"$ORBIT_BACKUP_DIR\"",
+            "while [ -e \"$ORBIT_BACKUP_DIR\" ]; do orbit_n=$((orbit_n + 1)); ORBIT_BACKUP_DIR=\"$orbit_base-$orbit_n\"; done",
+            "export ORBIT_BACKUP_DIR",
+            "mkdir -p \"$ORBIT_BACKUP_DIR\"",
+            "git rev-parse HEAD > \"$ORBIT_BACKUP_DIR/commit.txt\" 2>/dev/null || rm -f \"$ORBIT_BACKUP_DIR/commit.txt\"",
+            "for f in .env .env.local .env.production docker-compose.yml docker-compose.yaml docker-compose.override.yml compose.yml compose.yaml; do",
+            "  if [ -f \"$f\" ]; then cp -p \"$f\" \"$ORBIT_BACKUP_DIR/\"; fi",
+            "done",
+        ]
+        if dump.isEmpty {
+            lines.append("echo \(Shell.quote(tr("Команды для базы данных нет: сохраняю только настройки и версию.", "No database command: saving only the settings and the version.")))")
+        } else {
+            // In a subshell of its own, so a failure can be cleaned up after: a half-made backup is worse than none.
+            lines += ["set +e", "(", "set -e", dump, ")", "orbit_status=$?", "set -e",
+                      "if [ \"$orbit_status\" -ne 0 ]; then rm -rf \"$ORBIT_BACKUP_DIR\"; echo \(failed); exit \"$orbit_status\"; fi"]
+        }
+        lines += [
+            // `cp -p` keeps the original's permissions; a copy of .env must not be readable by other users.
+            "chmod -R go-rwx \"$ORBIT_BACKUP_DIR\"",
+            "empty=$(find \"$ORBIT_BACKUP_DIR\" -type f -size 0 ! -name '.env*' ! -name '*.yml' ! -name '*.yaml' | head -n 3)",
+            "if [ -n \"$empty\" ]; then echo \(Shell.quote(tr("Резервная копия пустая:", "The backup is empty:"))) $empty; rm -rf \"$ORBIT_BACKUP_DIR\"; echo \(failed); exit 1; fi",
+            "echo \(Shell.quote(tr("Резервная копия сохранена:", "Backup saved:"))) \"$ORBIT_BACKUP_DIR\"",
+            "ls -la \"$ORBIT_BACKUP_DIR\" | tail -n +2",
+            "(ls -1dt \"$ORBIT_BACKUP_ROOT\"/*/ 2>/dev/null || true) | tail -n +\(keep + 1) | while read -r old; do rm -rf \"$old\"; done",
+        ]
+        return lines.joined(separator: "\n")
+    }
+
     /// Back to `commit`: the code goes back, then the server-side commands run again. Checks on the Mac are skipped.
     static func rollback(_ server: ServerConfig, to commit: String, previous: String?) -> [PlannedStep] {
         var steps = [PlannedStep(run: StepRun(name: tr("Подключение", "Connect"), place: .server), action: .connect)]
         let env = environment(server, target: commit, previous: previous)
+        // Going back changes the server too: the backup, where there is one, comes first.
+        if let backup = server.steps.first(where: { $0.enabled && $0.kind == .backup }) { steps.append(backupStep(server, backup, env: env)) }
         let back = "git checkout -q --detach \(Shell.quote(commit))\ngit log -1 --format='%h %s'"
         steps.append(PlannedStep(run: StepRun(name: tr("Код назад", "Code back"), place: .server), action: .remote(remoteScript(server, body: back, env: env))))
         for step in server.steps where step.enabled && step.kind == .command && step.place == .server {

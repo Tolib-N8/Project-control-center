@@ -35,6 +35,16 @@ extension AppState {
         Task { await checkServers(force: true, only: server.id) }
     }
 
+    /// "Добавить шаг" in the deploy window: a backup before anything changes, with the dump the project suggests.
+    func addBackupStep(_ id: UUID) {
+        guard let ref = serverRef(id) else { return }
+        var server = ref.server
+        server.addBackup(DeployTemplate.detect(projectPath: ref.projectId).steps.first { $0.kind == .backup } ?? .backup())
+        updateProject(ref.projectId) { p in
+            if let i = p.servers?.firstIndex(where: { $0.id == id }) { p.servers?[i] = server }
+        }
+    }
+
     func removeServer(_ id: UUID) {
         guard let ref = serverRef(id) else { return }
         cancelDeploy(id)

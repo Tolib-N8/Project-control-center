@@ -264,20 +264,24 @@ final class ServerConfigTests: XCTestCase {
         func detect(_ files: [String: String]) -> (runtime: ServerRuntime, steps: [DeployStep]) {
             DeployTemplate.detect(projectPath: "/p", fileExists: { files[String($0.dropFirst(3))] != nil }, read: { files[String($0.dropFirst(3))].map { Data($0.utf8) } })
         }
-        let compose = detect(["docker-compose.yml": "", "package.json": #"{"scripts":{"test":"node --test"}}"#, "package-lock.json": ""])
+        let yaml = "services:\n  db:\n    image: postgres:15-alpine\n  web:\n    build: .\n"
+        let compose = detect(["docker-compose.yml": yaml, "package.json": #"{"scripts":{"test":"node --test"}}"#, "package-lock.json": ""])
         XCTAssertEqual(compose.runtime, .compose)
-        XCTAssertEqual(compose.steps.map(\.command), ["npm ci && npm test", "", "docker compose build", "docker compose up -d"])
-        XCTAssertEqual(compose.steps.map(\.place), [.mac, .server, .server, .server])
-        XCTAssertEqual(compose.steps[1].kind, .code)
+        XCTAssertEqual(compose.steps.map(\.kind), [.command, .backup, .code, .command, .command], "the backup comes before anything changes the server")
+        XCTAssertEqual(compose.steps.map(\.place), [.mac, .server, .server, .server, .server])
+        XCTAssertEqual(compose.steps[0].command, "npm ci && npm test")
+        XCTAssertTrue(compose.steps[1].command.contains("pg_dumpall"))
+        XCTAssertEqual(compose.steps.suffix(2).map(\.command), ["docker compose build", "docker compose up -d"])
 
         let script = detect(["deploy/update.sh": "", "package.json": #"{"scripts":{"test":"echo \"Error: no test specified\" && exit 1"}}"#])
         XCTAssertEqual(script.runtime, .systemd)
-        XCTAssertEqual(script.steps.map(\.command), ["", "sudo bash deploy/update.sh"])
-        XCTAssertFalse(script.steps[0].enabled, "the script pulls the code itself")
+        XCTAssertEqual(script.steps.map(\.kind), [.backup, .code, .command])
+        XCTAssertEqual(script.steps.map(\.command), ["", "", "sudo bash deploy/update.sh"])
+        XCTAssertFalse(script.steps[1].enabled, "the script pulls the code itself")
 
         let bare = detect([:])
         XCTAssertEqual(bare.runtime, .none)
-        XCTAssertEqual(bare.steps.first?.kind, .code)
+        XCTAssertEqual(bare.steps.map(\.kind), [.backup, .code, .command])
         XCTAssertFalse(bare.steps.last?.enabled ?? true)
     }
 
@@ -346,7 +350,7 @@ final class DeployTests: XCTestCase {
 
     private func server() -> ServerConfig {
         ServerConfig(name: "Основной", host: "root@h", directory: "/opt/app", url: "https://example.ru", branch: "release", runtime: .compose,
-                     steps: [DeployStep(name: "Тесты", command: "npm test", place: .mac), .code(),
+                     steps: [DeployStep(name: "Тесты", command: "npm test", place: .mac), .backup(command: "make dump"), .code(),
                              DeployStep(name: "Выключено", command: "echo off", enabled: false),
                              DeployStep(name: "Пусто", command: "  "),
                              DeployStep(name: "Запуск", command: "docker compose up -d --build")])
@@ -354,12 +358,16 @@ final class DeployTests: XCTestCase {
 
     func testPlan() {
         let plan = DeployPipeline.plan(server(), target: "abc123", previous: "old456")
-        XCTAssertEqual(plan.map(\.run.name), ["Подключение", "Тесты", "Код", "Запуск", "Проверка"], "disabled and empty steps are left out")
-        XCTAssertEqual(plan.map(\.run.place), [.server, .mac, .server, .server, .server])
+        XCTAssertEqual(plan.map(\.run.name), ["Подключение", "Тесты", "Резервная копия", "Код", "Запуск", "Проверка"], "disabled and empty steps are left out")
+        XCTAssertEqual(plan.map(\.run.place), [.server, .mac, .server, .server, .server, .server])
         XCTAssertEqual(plan[0].action, .connect)
         XCTAssertEqual(plan[1].action, .local("npm test"))
-        XCTAssertEqual(plan[4].action, .verify)
-        guard case .remote(let code) = plan[2].action, case .remote(let start) = plan[3].action else { return XCTFail("server steps expected") }
+        XCTAssertEqual(plan[5].action, .verify)
+        guard case .remote(let backup) = plan[2].action, case .remote(let code) = plan[3].action, case .remote(let start) = plan[4].action else { return XCTFail("server steps expected") }
+        XCTAssertTrue(backup.hasPrefix("set -e\ncd '/opt/app'\n"))
+        XCTAssertTrue(backup.contains("\nmake dump\n"))
+        XCTAssertTrue(backup.contains("export ORBIT_BACKUP_DIR"))
+        XCTAssertFalse(backup.contains("git merge"), "the backup changes nothing in the project")
         XCTAssertTrue(code.hasPrefix("set -e\ncd '/opt/app'\n"), "the first failing command stops the step")
         XCTAssertTrue(code.contains("git merge --ff-only 'abc123'"), "exactly the previewed commit, fast-forward only")
         XCTAssertTrue(code.contains("git checkout -q 'release'"))
@@ -372,10 +380,68 @@ final class DeployTests: XCTestCase {
 
     func testRollbackSkipsMacStepsAndGoesBackToTheCommit() {
         let plan = DeployPipeline.rollback(server(), to: "old456", previous: "abc123")
-        XCTAssertEqual(plan.map(\.run.name), ["Подключение", "Код назад", "Запуск", "Проверка"])
-        guard case .remote(let back) = plan[1].action else { return XCTFail() }
+        XCTAssertEqual(plan.map(\.run.name), ["Подключение", "Резервная копия", "Код назад", "Запуск", "Проверка"], "going back is a change too")
+        guard case .remote(let back) = plan[2].action else { return XCTFail() }
         XCTAssertTrue(back.contains("git checkout -q --detach 'old456'"))
         XCTAssertFalse(back.contains("merge"))
+    }
+
+    func testBackupStepCanBeAddedAndSwitchedBackOn() {
+        var bare = ServerConfig(name: "x", host: "h", directory: "/d", steps: [DeployStep(name: "Тесты", command: "npm test", place: .mac), .code(), DeployStep(name: "Запуск", command: "up")])
+        XCTAssertFalse(bare.hasBackup)
+        bare.addBackup(.backup(command: "dump"))
+        XCTAssertEqual(bare.steps.map(\.kind), [.command, .backup, .code, .command], "after the checks on the Mac, before the code")
+        XCTAssertTrue(bare.hasBackup)
+        bare.steps[1].enabled = false
+        XCTAssertFalse(bare.hasBackup)
+        bare.addBackup()
+        XCTAssertEqual(bare.steps.filter { $0.kind == .backup }.count, 1, "never a second one")
+        XCTAssertEqual(bare.steps[1].command, "dump", "the user's command survives")
+        XCTAssertTrue(bare.hasBackup)
+
+        var scriptOnly = ServerConfig(name: "x", host: "h", directory: "/d", steps: [DeployStep(name: "Обновление", command: "sudo bash deploy/update.sh")])
+        scriptOnly.addBackup()
+        XCTAssertEqual(scriptOnly.steps.map(\.kind), [.backup, .command])
+    }
+
+    func testDatabaseDumpSuggestedFromCompose() {
+        let yaml = """
+        # ParkingFlow
+        services:
+          db:
+            image: postgres:15-alpine
+            container_name: parkingflow-db
+            environment:
+              POSTGRES_USER: ${POSTGRES_USER}
+          redis:
+            image: redis:7-alpine
+          backend:
+            build:
+              context: ./backend
+            image: parkingflow-backend:latest
+          legacy:
+            image: "docker.io/library/mysql:8"
+          maria:
+            image: mariadb:11
+        volumes:
+          db_data:
+        networks:
+          internal:
+        """
+        XCTAssertEqual(BackupTemplate.services(compose: yaml).map(\.name), ["db", "redis", "backend", "legacy", "maria"])
+        let lines = BackupTemplate.command(compose: yaml).split(separator: "\n").map(String.init)
+        XCTAssertEqual(lines.count, 3, "one dump per database, nothing for redis or the app itself")
+        XCTAssertEqual(lines[0], #"docker compose exec -T db sh -c 'pg_dumpall -U "${POSTGRES_USER:-postgres}"' | gzip > "$ORBIT_BACKUP_DIR/db.sql.gz""#)
+        XCTAssertTrue(lines[1].contains("exec -T legacy") && lines[1].contains("mysqldump"))
+        XCTAssertTrue(lines[2].contains("exec -T maria") && lines[2].contains("mariadb-dump"))
+        XCTAssertEqual(BackupTemplate.command(compose: "services:\n  app:\n    image: smena:latest\n  caddy:\n    image: caddy:2-alpine\n"), "", "no database container — nothing to suggest")
+        XCTAssertEqual(BackupTemplate.command(compose: ""), "")
+        XCTAssertEqual(BackupTemplate.command(compose: "services:\n  \"bad name; rm -rf\":\n    image: postgres:16\n"), "", "a service name never ends up in a command unchecked")
+    }
+
+    func testOldConfigWithAnUnknownStepKindStillLoads() throws {
+        let server = try JSONDecoder().decode(ServerConfig.self, from: Data(#"{"name":"x","host":"h","directory":"/d","steps":[{"kind":"something-new","name":"Run","command":"make"}]}"#.utf8))
+        XCTAssertEqual(server.steps.first?.kind, .command)
     }
 
     func testLocalScriptWorksInACopy() {
@@ -586,6 +652,63 @@ final class DeployGitTests: XCTestCase {
         XCTAssertNotEqual(StepProcess().run("/bin/zsh", ["-c", failing], log: log, timeout: 60), 0)
     }
 
+    /// The backup script for real, in a throwaway folder: what gets saved, what stops the deploy, what is pruned.
+    func testBackupScriptSavesChecksAndPrunes() throws {
+        let home = root.appendingPathComponent("backups").path
+        try "SECRET=1\n".write(toFile: project + "/.env", atomically: true, encoding: .utf8)
+        try "services: {}\n".write(toFile: project + "/docker-compose.yml", atomically: true, encoding: .utf8)
+        let head = commit("one", "First")
+        let server = ServerConfig(name: "x", host: "h", directory: project)
+        func run(_ command: String, shell: String = "/bin/bash") -> (status: Int32, log: String) {
+            let log = root.appendingPathComponent("backup-\(UUID().uuidString).log")
+            let script = DeployPipeline.remoteScript(server, body: DeployPipeline.backupScript(command: command, keep: 3), env: [:])
+            let status = StepProcess().run(shell, ["-c", script], env: ["ORBIT_BACKUP_HOME": home, "ORBIT_PIDFILE": ""], log: log, timeout: 60)
+            return (status, LogText.tail(log))
+        }
+        func backups() -> [String] { ((try? FileManager.default.contentsOfDirectory(atPath: home + "/project")) ?? []).sorted() }
+
+        // Older backups, to see the pruning; the newest three (with the new one) must stay.
+        for (i, name) in ["20260101-000000-aaa", "20260102-000000-bbb", "20260103-000000-ccc", "20260104-000000-ddd"].enumerated() {
+            let dir = home + "/project/" + name
+            try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            try "old".write(toFile: dir + "/db.sql.gz", atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(Double(i - 10) * 3600)], ofItemAtPath: dir)
+        }
+
+        let ok = run("echo 'CREATE TABLE t' | gzip > \"$ORBIT_BACKUP_DIR/db.sql.gz\"")
+        XCTAssertEqual(ok.status, 0, ok.log)
+        let kept = backups()
+        XCTAssertEqual(kept.count, 3, "only the newest three stay: \(kept)")
+        XCTAssertEqual(Array(kept.prefix(2)), ["20260103-000000-ccc", "20260104-000000-ddd"])
+        let fresh = home + "/project/" + kept[2]
+        XCTAssertTrue(kept[2].hasSuffix("-" + head.prefix(7)), "named after the version it protects: \(kept[2])")
+        XCTAssertEqual(try String(contentsOfFile: fresh + "/commit.txt", encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines), head)
+        XCTAssertEqual(try String(contentsOfFile: fresh + "/.env", encoding: .utf8), "SECRET=1\n")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fresh + "/docker-compose.yml"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fresh + "/db.sql.gz"))
+        let mode = try FileManager.default.attributesOfItem(atPath: fresh + "/.env")[.posixPermissions] as? Int
+        XCTAssertEqual((mode ?? 0) & 0o077, 0, "settings with passwords are readable by the owner only")
+        XCTAssertTrue(ok.log.contains("Резервная копия сохранена:"))
+
+        let before = backups().count
+        let empty = run(": > \"$ORBIT_BACKUP_DIR/db.sql\"")
+        XCTAssertNotEqual(empty.status, 0, "an empty dump stops the deploy")
+        XCTAssertTrue(empty.log.contains("Резервная копия пустая:"), empty.log)
+
+        // The dump fails but gzip after it succeeds: the step must still fail (pipefail).
+        let broken = run("sh -c 'echo partial; exit 3' | gzip > \"$ORBIT_BACKUP_DIR/db.sql.gz\"")
+        XCTAssertNotEqual(broken.status, 0, "a failed dump is not hidden by the pipe: \(broken.log)")
+        XCTAssertEqual(backups().count, before, "a failed backup leaves nothing half-made behind and deletes nothing older")
+        XCTAssertTrue(broken.log.contains("на сервере ничего не изменено"), broken.log)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fresh + "/db.sql.gz"), "the good backup from a moment ago is still there")
+
+        let plain = run("")
+        XCTAssertEqual(plain.status, 0, plain.log)
+        XCTAssertTrue(plain.log.contains("Команды для базы данных нет"))
+        XCTAssertEqual(try String(contentsOfFile: project + "/page.txt", encoding: .utf8), "one", "the project itself is untouched")
+        XCTAssertEqual(git(project, "status", "--porcelain", "--untracked-files=no").stdout, "")
+    }
+
     func testStoppingAStepKillsWhatItStarted() {
         let log = root.appendingPathComponent("slow.log")
         let marker = root.appendingPathComponent("finished").path
@@ -599,6 +722,24 @@ final class DeployGitTests: XCTestCase {
         Thread.sleep(forTimeInterval: 0.3)
         XCTAssertFalse(Shell.run("/usr/bin/pgrep", ["-f", marker]).ok, "the child of the shell is gone too")
         XCTAssertEqual(process.run("/bin/echo", ["again"], log: log, timeout: 5), -2, "a stopped deploy starts nothing more")
+    }
+}
+
+final class HousekeepingTests: XCTestCase {
+    func testOnlyStagingFoldersAreLeftovers() throws {
+        let updates = FileManager.default.temporaryDirectory.appendingPathComponent("orbit-updates-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: updates) }
+        for name in ["staging-1.1.1/Orbit.app", "staging-2.0.0/Orbit.app", "previous/Orbit.app"] {
+            try FileManager.default.createDirectory(at: updates.appendingPathComponent(name), withIntermediateDirectories: true)
+        }
+        try "log".write(to: updates.appendingPathComponent("update.log"), atomically: true, encoding: .utf8)
+        XCTAssertEqual(Updater.staleStaging(in: updates).map(\.lastPathComponent), ["staging-1.1.1", "staging-2.0.0"], "the backup copy and the log stay")
+        XCTAssertEqual(Updater.staleStaging(in: updates, keeping: "2.0.0").map(\.lastPathComponent), ["staging-1.1.1"])
+        XCTAssertTrue(Updater.staleStaging(in: updates.appendingPathComponent("missing")).isEmpty)
+    }
+
+    func testNothingIsPostedFromTests() {
+        XCTAssertFalse(Notifier.enabled, "made-up data from tests and snapshot runs must never reach Notification Center")
     }
 }
 
@@ -686,5 +827,30 @@ final class ServerSignalTests: XCTestCase {
         var stopped = failed
         stopped.state = .cancelled
         XCTAssertTrue(signals(ServerStatus(site: SiteCheck(code: 200)), run: stopped).isEmpty, "stopping a deploy by hand isn't a failure")
+    }
+}
+
+/// The suggested database dump against a real Postgres. Needs Docker, so it only runs when asked:
+/// `TEST_RUNNER_ORBIT_BACKUP_E2E=<folder with a running compose project> xcodebuild test -only-testing:OrbitTests/RealBackupTests`.
+final class RealBackupTests: XCTestCase {
+    func testSuggestedDumpAgainstARunningDatabase() throws {
+        guard let project = ProcessInfo.processInfo.environment["ORBIT_BACKUP_E2E"], !project.isEmpty else {
+            throw XCTSkip("set ORBIT_BACKUP_E2E to a folder with a running compose project")
+        }
+        L10n.current = .ru
+        let home = (project as NSString).deletingLastPathComponent + "/backups"
+        let step = try XCTUnwrap(DeployTemplate.detect(projectPath: project).steps.first { $0.kind == .backup })
+        XCTAssertFalse(step.command.isEmpty, "the compose file has a database: a dump is suggested")
+        let server = ServerConfig(name: "x", host: "h", directory: project)
+        let script = DeployPipeline.remoteScript(server, body: DeployPipeline.backupScript(command: step.command), env: [:])
+        let log = URL(fileURLWithPath: home + "/step.log")
+        let path = CLILocator.searchPATH(for: "/bin/bash")
+        let status = StepProcess().run("/bin/bash", ["-c", script], env: ["ORBIT_BACKUP_HOME": home, "ORBIT_PIDFILE": "", "PATH": path], log: log, timeout: 120)
+        try LogText.tail(log).write(toFile: home + "/last-run.txt", atomically: true, encoding: .utf8)
+        if ProcessInfo.processInfo.environment["ORBIT_BACKUP_EXPECT"] == "failure" {
+            XCTAssertNotEqual(status, 0, "with the database down the backup must fail")
+        } else {
+            XCTAssertEqual(status, 0, LogText.tail(log))
+        }
     }
 }

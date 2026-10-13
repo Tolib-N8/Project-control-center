@@ -140,6 +140,29 @@ enum Updater {
         return r > c
     }
 
+    // MARK: - Leftovers
+
+    static let lsregister = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+
+    /// Folders with app copies that earlier updates staged and never removed; the one being installed right now is kept.
+    static func staleStaging(in updates: URL, keeping version: String? = nil) -> [URL] {
+        let items = (try? FileManager.default.contentsOfDirectory(at: updates, includingPropertiesForKeys: nil)) ?? []
+        return items.filter { $0.lastPathComponent.hasPrefix("staging-") && $0.lastPathComponent != "staging-\(version ?? "")" }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    /// At launch: removes staged copies left by versions up to 2.0 (each update left a whole app behind)
+    /// and tells macOS to forget them and the backup copy, so there is one Orbit as far as the system knows.
+    static func removeLeftovers() {
+        let updates = Store.root.appendingPathComponent("updates", isDirectory: true)
+        for folder in staleStaging(in: updates) {
+            Shell.run(lsregister, ["-u", folder.appendingPathComponent("Orbit.app").path], timeout: 20)
+            try? FileManager.default.removeItem(at: folder)
+        }
+        let previous = updates.appendingPathComponent("previous/Orbit.app").path
+        if FileManager.default.fileExists(atPath: previous) { Shell.run(lsregister, ["-u", previous], timeout: 20) }
+    }
+
     // MARK: - Install
 
     /// Downloads, verifies and stages the update, then hands over to a helper that swaps the
@@ -224,9 +247,15 @@ enum Updater {
         if alive; then echo "$(date) still running, sending KILL"; kill -KILL "$pid"; sleep 0.5; fi
         echo "$(date) updating $target"
         rm -rf "$backup"; mkdir -p "$(dirname "$backup")"
+        lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
         if mv "$target" "$backup" && ditto "$new" "$target"; then
           xattr -dr com.apple.quarantine "$target" 2>/dev/null
           echo "$(date) installed"
+          # The staged copy has done its job. Left behind, every update would add one more "Orbit" for
+          # macOS to know about, and notifications could show the icon of a copy that is long gone.
+          $lsregister -u "$new" 2>/dev/null
+          case "$new" in */updates/staging-*/Orbit.app) rm -rf "$(dirname "$new")" ;; esac
+          $lsregister -u "$backup" 2>/dev/null
         else
           echo "$(date) failed, restoring previous version"
           rm -rf "$target"; mv "$backup" "$target"
@@ -234,7 +263,7 @@ enum Updater {
         # Let LaunchServices notice the old instance is gone and the bundle changed, then start a
         # fresh instance (-n) and make sure it is really running.
         sleep 0.5
-        /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$target" 2>/dev/null
+        $lsregister -f "$target" 2>/dev/null
         for attempt in 1 2 3; do
           open -n "$target" && sleep 2
           if pgrep -f "$target/Contents/MacOS/" >/dev/null; then echo "$(date) relaunched"; exit 0; fi

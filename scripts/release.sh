@@ -70,7 +70,10 @@ say "Pushed $tag ($(git rev-parse --short HEAD))"
 # --- Build from the tag ---------------------------------------------------
 rm -rf "$work"
 git worktree add -q --detach "$work/src" "$tag"
-trap 'git worktree remove --force "$work/src" 2>/dev/null || true' EXIT
+# The build registers itself with macOS as one more "Orbit". Forget it on the way out, or notifications
+# may later show the icon of this copy after it is gone.
+lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+trap 'git worktree remove --force "$work/src" 2>/dev/null || true; "$lsregister" -u "$work/dd/Build/Products/Release/Orbit.app" 2>/dev/null || true; rm -rf "$work/dd"' EXIT
 (
   cd "$work/src"
   xcodegen generate --quiet

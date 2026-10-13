@@ -165,7 +165,7 @@ enum Snapshotter {
                 app.screen = .week
                 app.sheet = .planner(weekKey: app.displayWeekKey)
             case "servers-empty": app.screen = .servers
-            case "servers", "server-setup", "server-new", "deploy", "deploy-running", "deploy-failed", "server-log", "server-signals", "server-project":
+            case "servers", "server-setup", "server-new", "deploy", "deploy-nobackup", "deploy-running", "deploy-failed", "server-log", "server-signals", "server-project":
                 // Made-up servers: nothing is contacted.
                 ServerFixtures.install(app)
                 guard let main = ServerFixtures.main, let ref = app.serverRef(main) else { continue }
@@ -177,6 +177,9 @@ enum Snapshotter {
                 case "deploy":
                     DeploySheet.debugPreview = ServerFixtures.preview()
                     app.sheet = .deploy(serverId: main)
+                case "deploy-nobackup":
+                    DeploySheet.debugPreview = ServerFixtures.preview()
+                    if let id = ServerFixtures.failing { app.sheet = .deploy(serverId: id) }
                 case "deploy-running":
                     ServerFixtures.showRunning(app)
                     DeploySheet.debugRun = ServerFixtures.runningRun

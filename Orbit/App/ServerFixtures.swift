@@ -20,8 +20,8 @@ enum ServerFixtures {
 
         let prod = ServerConfig(name: tr("Основной", "Production"), host: "root@203.0.113.10", directory: "/opt/parking",
                                 url: "https://parking.example.ru", branch: "main", runtime: .compose,
-                                steps: [DeployStep(name: tr("Тесты", "Tests"), command: "npm ci && npm test", place: .mac), .code(),
-                                        DeployStep(name: tr("Резервная копия", "Backup"), command: "docker exec parking-db pg_dump -U app app > ~/backup-$(date +%F-%H%M).sql"),
+                                steps: [DeployStep(name: tr("Тесты", "Tests"), command: "npm ci && npm test", place: .mac),
+                                        .backup(command: BackupTemplate.command(compose: "services:\n  db:\n    image: postgres:15-alpine\n")), .code(),
                                         DeployStep(name: tr("Сборка", "Build"), command: "docker compose build backend frontend"),
                                         DeployStep(name: tr("Запуск", "Start"), command: "docker compose up -d backend frontend")],
                                 autoDeploy: true)
@@ -78,8 +78,8 @@ enum ServerFixtures {
         }
         let ok = DeployRun(projectId: a, serverId: prod.id, trigger: .auto, startedAt: now.addingTimeInterval(-26 * 3600), finishedAt: now.addingTimeInterval(-26 * 3600 + 168),
                            fromCommit: commit("0f9e8d7"), toCommit: commit("a1b2c3d"), toSubject: "Fix exit barrier timeout for long plates",
-                           steps: steps([(tr("Подключение", "Connect"), .server, .success, 1.2), (tr("Тесты", "Tests"), .mac, .success, 41), (tr("Код", "Code"), .server, .success, 2.8),
-                                         (tr("Резервная копия", "Backup"), .server, .success, 3.1), (tr("Сборка", "Build"), .server, .success, 96),
+                           steps: steps([(tr("Подключение", "Connect"), .server, .success, 1.2), (tr("Тесты", "Tests"), .mac, .success, 41), (tr("Резервная копия", "Backup"), .server, .success, 3.1),
+                                         (tr("Код", "Code"), .server, .success, 2.8), (tr("Сборка", "Build"), .server, .success, 96),
                                          (tr("Запуск", "Start"), .server, .success, 14), (tr("Проверка", "Check"), .server, .success, 9.6)]),
                            state: .success)
         let older = DeployRun(projectId: a, serverId: prod.id, trigger: .manual, startedAt: now.addingTimeInterval(-4 * 86400), finishedAt: now.addingTimeInterval(-4 * 86400 + 201),
@@ -92,8 +92,8 @@ enum ServerFixtures {
                                state: .failed)
         let running = DeployRun(projectId: a, serverId: prod.id, trigger: .manual, startedAt: now.addingTimeInterval(-73), finishedAt: nil,
                                 fromCommit: commit("a1b2c3d"), toCommit: commit("e4f5a6b"), toSubject: "Monthly passes: prorate the first month",
-                                steps: steps([(tr("Подключение", "Connect"), .server, .success, 1.1), (tr("Тесты", "Tests"), .mac, .success, 39.4), (tr("Код", "Code"), .server, .success, 2.6),
-                                              (tr("Резервная копия", "Backup"), .server, .success, 2.9), (tr("Сборка", "Build"), .server, .running, nil),
+                                steps: steps([(tr("Подключение", "Connect"), .server, .success, 1.1), (tr("Тесты", "Tests"), .mac, .success, 39.4), (tr("Резервная копия", "Backup"), .server, .success, 2.9),
+                                              (tr("Код", "Code"), .server, .success, 2.6), (tr("Сборка", "Build"), .server, .running, nil),
                                               (tr("Запуск", "Start"), .server, .pending, nil), (tr("Проверка", "Check"), .server, .pending, nil)]),
                                 state: .running)
         failedRun = failed.id

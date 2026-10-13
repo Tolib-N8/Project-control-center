@@ -133,6 +133,7 @@ Add a project's production server — an address you would pass to `ssh`, the pr
 | --- | --- |
 | Connect | SSH works, the folder is there; the current version is remembered for rollback |
 | Your checks on the Mac | e.g. `npm ci && npm test`, in a **clean copy** of the commit being deployed — not in your working folder |
+| Backup | `.env`, the compose file and the version, plus a database dump (suggested for Postgres, MySQL and MariaDB) into `~/orbit-backups` on the server; the last 7 are kept. A failed or empty dump stops the deploy before anything changes |
 | Code | `git fetch` and a fast-forward to exactly that commit; never a reset |
 | Your commands on the server | `docker compose build`, `docker compose up -d`, a backup, `deploy/update.sh` … |
 | Check | waits up to 90 seconds for the site to answer and everything to be running |

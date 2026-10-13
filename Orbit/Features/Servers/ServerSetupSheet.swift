@@ -225,6 +225,9 @@ struct ServerSetupSheet: View {
                 if !draft.steps.contains(where: { $0.kind == .code }) {
                     OrbitButton(tr("Обновление кода", "Code update"), icon: "plus", compact: true) { withMotion { draft.steps.insert(.code(), at: 0) } }
                 }
+                if !draft.steps.contains(where: { $0.kind == .backup }) {
+                    OrbitButton(tr("Резервная копия", "Backup"), icon: "plus", compact: true) { withMotion { insertBackup() } }
+                }
                 Spacer()
                 OrbitButton(tr("Предложить по проекту", "Suggest from the project"), kind: .ghost, compact: true) {
                     withMotion { draft.steps = DeployTemplate.detect(projectPath: projectId).steps }
@@ -293,6 +296,11 @@ struct ServerSetupSheet: View {
         }
     }
 
+    /// Before the first step that changes the server, with the database dump the project's compose file suggests.
+    private func insertBackup() {
+        draft.addBackup(DeployTemplate.detect(projectPath: projectId).steps.first { $0.kind == .backup } ?? .backup())
+    }
+
     private func move(_ id: UUID, by delta: Int) {
         guard let i = draft.steps.firstIndex(where: { $0.id == id }), draft.steps.indices.contains(i + delta) else { return }
         withMotion { draft.steps.swapAt(i, i + delta) }
@@ -346,6 +354,20 @@ private struct StepRow: View {
                     Text(tr("git fetch и перемотка ветки \(branch.isEmpty ? "main" : branch) до выкатываемого коммита", "git fetch and a fast-forward of branch \(branch.isEmpty ? "main" : branch) to the commit being deployed"))
                         .uiFont(12, color: Theme.text3).fixedSize(horizontal: false, vertical: true).padding(.top, 6)
                     Spacer(minLength: 0)
+                } else if step.kind == .backup {
+                    Text(tr("Резервная копия", "Backup")).uiFont(13, .medium, color: step.enabled ? Theme.text : Theme.text3).frame(width: 150, alignment: .leading).padding(.top, 5)
+                    VStack(alignment: .leading, spacing: 6) {
+                        TextField("", text: $step.command, prompt: Text(tr("команда для дампа базы — если она есть", "the database dump command — if there is one")).foregroundStyle(Theme.text3), axis: .vertical)
+                            .textFieldStyle(.plain).font(OrbitFont.mono(12))
+                            .lineLimit(1...5)
+                            .autocorrectionDisabled()
+                            .padding(.vertical, 6).padding(.horizontal, 9)
+                            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 6))
+                            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(warning == nil ? Theme.border : Theme.red.opacity(0.7)))
+                        Text(tr("Настройки (.env, compose) и номер версии Orbit сохраняет сам — в ~/orbit-backups на сервере, последние \(BackupTemplate.keep) копий. Дамп кладите в $ORBIT_BACKUP_DIR; пустой дамп остановит выкладку.",
+                                "Orbit saves the settings (.env, compose) and the version by itself — to ~/orbit-backups on the server, the last \(BackupTemplate.keep) copies. Put the dump into $ORBIT_BACKUP_DIR; an empty dump stops the deploy."))
+                            .uiFont(11.5, color: Theme.text3).fixedSize(horizontal: false, vertical: true)
+                    }
                 } else {
                     TextField("", text: $step.name, prompt: Text(tr("Название", "Name")).foregroundStyle(Theme.text3))
                         .textFieldStyle(.plain).font(OrbitFont.ui(13, .medium))
@@ -385,7 +407,7 @@ private struct StepRow: View {
         .hairline()
     }
 
-    private var warning: String? { step.kind == .command && step.place == .server ? DeployLint.warning(step.command) : nil }
+    private var warning: String? { step.kind != .code && step.place == .server ? DeployLint.warning(step.command) : nil }
 
     private func arrow(_ icon: String, enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
